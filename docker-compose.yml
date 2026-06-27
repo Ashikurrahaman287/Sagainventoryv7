@@ -1,5 +1,16 @@
 version: "3.9"
 
+# ─────────────────────────────────────────────────────────────
+#  Saga Inventory — self-host on your laptop
+#
+#  Quick start:
+#    1. Copy .env.example to .env and edit as needed
+#    2. docker-compose up -d
+#    3. Open http://localhost:5000 in your browser
+#    4. docker-compose down          → stop
+#    5. docker-compose logs -f app   → view live logs
+# ─────────────────────────────────────────────────────────────
+
 services:
   db:
     image: postgres:16-alpine
@@ -7,32 +18,41 @@ services:
     environment:
       POSTGRES_DB: sagainventory
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_secure_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"          # remove this line if you don't need direct DB access
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sagainventory"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "${APP_PORT:-5000}:5000"   # access at http://localhost:5000 (or change APP_PORT)
     environment:
       NODE_ENV: production
       PORT: 5000
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@db:5432/sagainventory
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme_secure_password}@db:5432/sagainventory
+      SESSION_SECRET: ${SESSION_SECRET:-change_this_to_a_long_random_string_in_production}
+      APP_PASSWORD: ${APP_PASSWORD:-ASHIK123456789@00}
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5000/api/health || exit 1"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
+      start_period: 20s
 
 volumes:
   postgres_data:
+    driver: local

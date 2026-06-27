@@ -1,1 +1,2 @@
 - [Saga Inventory stack decisions](saga-stack.md) — key architectural decisions for this project to stay consistent with.
+- [Auth approach](auth-approach.md) — single-password session auth with express-session + memorystore; all logic in server/auth.ts.

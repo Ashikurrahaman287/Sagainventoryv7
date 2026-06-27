@@ -9,14 +9,16 @@ async function throwIfResNotOk(res: Response) {
     } catch {
       errorMessage = (await res.text()) || res.statusText;
     }
-    throw new Error(errorMessage);
+    const err: any = new Error(errorMessage);
+    err.status = res.status;
+    throw err;
   }
 }
 
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown,
 ): Promise<Response> {
   const res = await fetch(url, {
     method,
@@ -30,23 +32,26 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
+  ({ on401 }) =>
   async ({ queryKey }) => {
-    // Build URL properly — only use first segment as path, rest as context
     const url = queryKey[0] as string;
-    const res = await fetch(url, {
-      credentials: "include",
-    });
+    const res = await fetch(url, { credentials: "include" });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      if (on401 === "returnNull") return null as any;
+      // Signal all other queries to re-check auth status
+      queryClient.setQueryData(["/api/auth/status"], { authenticated: false });
+      const err: any = new Error("Session expired. Please log in again.");
+      err.status = 401;
+      throw err;
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    return res.json();
   };
 
 export const queryClient = new QueryClient({
@@ -55,8 +60,12 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: true,
-      staleTime: 30 * 1000, // 30 seconds
-      retry: 1,
+      staleTime: 30 * 1000,
+      retry: (failureCount, error: any) => {
+        // Don't retry auth errors
+        if (error?.status === 401 || error?.status === 403) return false;
+        return failureCount < 1;
+      },
     },
     mutations: {
       retry: false,

@@ -48,6 +48,7 @@ export const sales = pgTable("sales", {
   discountType: text("discount_type").notNull().default("percentage"),
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   paymentMethod: text("payment_method").notNull(),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -61,6 +62,12 @@ export const saleItems = pgTable("sale_items", {
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   buyingPrice: decimal("buying_price", { precision: 10, scale: 2 }).notNull(),
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+});
+
+export const settings = pgTable("settings", {
+  key: varchar("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Insert schemas
@@ -106,6 +113,7 @@ export const insertSaleSchema = createInsertSchema(sales).omit({
   subtotal: z.string(),
   discount: z.string(),
   total: z.string(),
+  notes: z.string().optional(),
   items: z.array(insertSaleItemSchema),
 });
 
@@ -116,6 +124,7 @@ export type Seller = typeof sellers.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type SaleItem = typeof saleItems.$inferSelect;
+export type Setting = typeof settings.$inferSelect;
 
 // Insert types
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;

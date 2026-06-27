@@ -5,6 +5,16 @@ import { Package, DollarSign, AlertTriangle, TrendingUp, ArrowRight } from "luci
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import type { Product } from "@shared/schema";
 
 interface DashboardStats {
@@ -18,33 +28,52 @@ interface RecentSale {
   id: string;
   receiptNumber: string;
   customerName: string;
+  sellerName: string;
   total: string;
+  paymentMethod: string;
   createdAt: string;
 }
 
+interface ChartPoint {
+  date: string;
+  sales: number;
+  profit: number;
+}
+
 export default function Dashboard() {
-  const { data: stats } = useQuery<DashboardStats>({
+  const { data: stats, isLoading: loadingStats } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });
 
-  const { data: lowStockProducts = [] } = useQuery<Product[]>({
+  const { data: lowStockProducts = [], isLoading: loadingLowStock } = useQuery<Product[]>({
     queryKey: ["/api/dashboard/low-stock"],
   });
 
-  const { data: recentSales = [] } = useQuery<RecentSale[]>({
+  const { data: recentSales = [], isLoading: loadingRecent } = useQuery<RecentSale[]>({
     queryKey: ["/api/sales/recent"],
+  });
+
+  const { data: chartData = [] } = useQuery<ChartPoint[]>({
+    queryKey: ["/api/dashboard/chart"],
   });
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return "Just now";
-    if (diffInMinutes < 60) return `${diffInMinutes} mins ago`;
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    return `${Math.floor(diffInHours / 24)} day${Math.floor(diffInHours / 24) > 1 ? 's' : ''} ago`;
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    return `${Math.floor(diffInHours / 24)}d ago`;
+  };
+
+  const paymentBadgeVariant = (method: string): "default" | "success" | "warning" | "secondary" => {
+    if (method === "cash") return "success";
+    if (method === "card") return "default";
+    if (method === "transfer") return "warning";
+    return "secondary";
   };
 
   return (
@@ -54,37 +83,95 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Overview of your inventory and sales</p>
       </div>
 
+      {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Total Products"
-          value={stats?.totalProducts ?? 0}
-          change={12}
-          icon={Package}
-          testId="card-total-products"
-        />
-        <StatCard
-          title="Today's Sales"
-          value={`$${(stats?.todaysSales ?? 0).toFixed(2)}`}
-          change={8.2}
-          icon={DollarSign}
-          testId="card-todays-sales"
-        />
-        <StatCard
-          title="Low Stock Alerts"
-          value={stats?.lowStockCount ?? 0}
-          change={-15}
-          icon={AlertTriangle}
-          testId="card-low-stock"
-        />
-        <StatCard
-          title="Profit Today"
-          value={`$${(stats?.todaysProfit ?? 0).toFixed(2)}`}
-          change={5.4}
-          icon={TrendingUp}
-          testId="card-profit"
-        />
+        {loadingStats ? (
+          [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)
+        ) : (
+          <>
+            <StatCard
+              title="Total Products"
+              value={stats?.totalProducts ?? 0}
+              icon={Package}
+              testId="card-total-products"
+            />
+            <StatCard
+              title="Today's Sales"
+              value={`$${(stats?.todaysSales ?? 0).toFixed(2)}`}
+              icon={DollarSign}
+              testId="card-todays-sales"
+            />
+            <StatCard
+              title="Low Stock Alerts"
+              value={stats?.lowStockCount ?? 0}
+              icon={AlertTriangle}
+              testId="card-low-stock"
+            />
+            <StatCard
+              title="Profit Today"
+              value={`$${(stats?.todaysProfit ?? 0).toFixed(2)}`}
+              icon={TrendingUp}
+              testId="card-profit"
+            />
+          </>
+        )}
       </div>
 
+      {/* Sales chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Sales & Profit — Last 7 Days</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {chartData.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">No sales data yet</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gradProfit" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `$${v}`} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                  }}
+                  formatter={(value: number, name: string) => [`$${value.toFixed(2)}`, name === "sales" ? "Sales" : "Profit"]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="sales"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  fill="url(#gradSales)"
+                  name="sales"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="profit"
+                  stroke="hsl(var(--success, 142 76% 36%))"
+                  strokeWidth={2}
+                  fill="url(#gradProfit)"
+                  name="profit"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Low stock + recent sales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
@@ -97,7 +184,11 @@ export default function Dashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            {lowStockProducts.length === 0 ? (
+            {loadingLowStock ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+              </div>
+            ) : lowStockProducts.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No low stock items
               </div>
@@ -131,7 +222,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
             <CardTitle>Recent Sales</CardTitle>
-            <Link href="/sales">
+            <Link href="/sales/history">
               <Button variant="ghost" size="sm" data-testid="button-view-all-sales">
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -139,7 +230,11 @@ export default function Dashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            {recentSales.length === 0 ? (
+            {loadingRecent ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+              </div>
+            ) : recentSales.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No recent sales
               </div>
@@ -157,8 +252,13 @@ export default function Dashboard() {
                         <span className="font-mono">{sale.receiptNumber}</span> • {formatTimeAgo(sale.createdAt)}
                       </div>
                     </div>
-                    <div className="font-mono font-semibold">
-                      ${parseFloat(sale.total).toFixed(2)}
+                    <div className="flex items-center gap-2">
+                      <Badge variant={paymentBadgeVariant(sale.paymentMethod)} className="capitalize">
+                        {sale.paymentMethod}
+                      </Badge>
+                      <div className="font-mono font-semibold">
+                        ${parseFloat(sale.total).toFixed(2)}
+                      </div>
                     </div>
                   </div>
                 ))}

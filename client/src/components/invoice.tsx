@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Printer, Download } from "lucide-react";
+import { Printer } from "lucide-react";
 
 export interface InvoiceData {
   invoiceNumber: string;
@@ -11,6 +11,8 @@ export interface InvoiceData {
   customerEmail: string;
   customerPhone: string;
   sellerName: string;
+  businessName?: string;
+  receiptFooter?: string;
   items: {
     stockCode: string;
     name: string;
@@ -27,18 +29,15 @@ export interface InvoiceData {
 
 interface InvoiceProps {
   data: InvoiceData;
-  onPrint?: () => void;
-  onDownload?: () => void;
 }
 
-export function Invoice({ data, onPrint, onDownload }: InvoiceProps) {
+export function Invoice({ data }: InvoiceProps) {
   const handlePrint = () => {
-    if (onPrint) {
-      onPrint();
-    } else {
-      window.print();
-    }
+    window.print();
   };
+
+  const businessName = data.businessName || "Saga Inventory";
+  const receiptFooter = data.receiptFooter || "Thank you for your business!";
 
   return (
     <div className="space-y-4">
@@ -47,12 +46,6 @@ export function Invoice({ data, onPrint, onDownload }: InvoiceProps) {
           <Printer className="mr-2 h-4 w-4" />
           Print Invoice
         </Button>
-        {onDownload && (
-          <Button variant="outline" onClick={onDownload} data-testid="button-download-invoice">
-            <Download className="mr-2 h-4 w-4" />
-            Download PDF
-          </Button>
-        )}
       </div>
 
       <Card className="max-w-4xl mx-auto p-8 print:shadow-none print:border-0">
@@ -61,7 +54,7 @@ export function Invoice({ data, onPrint, onDownload }: InvoiceProps) {
           <div className="flex justify-between items-start">
             <div>
               <h1 className="text-4xl font-bold">INVOICE</h1>
-              <p className="text-muted-foreground mt-2">Saga Inventory</p>
+              <p className="text-muted-foreground mt-2">{businessName}</p>
               <p className="text-sm text-muted-foreground">Inventory Management System</p>
             </div>
             <div className="text-right">
@@ -86,8 +79,12 @@ export function Invoice({ data, onPrint, onDownload }: InvoiceProps) {
                 <div className="font-semibold" data-testid="text-customer-name">
                   {data.customerName}
                 </div>
-                <div className="text-sm text-muted-foreground">{data.customerEmail}</div>
-                <div className="text-sm text-muted-foreground">{data.customerPhone}</div>
+                {data.customerEmail && (
+                  <div className="text-sm text-muted-foreground">{data.customerEmail}</div>
+                )}
+                {data.customerPhone && (
+                  <div className="text-sm text-muted-foreground">{data.customerPhone}</div>
+                )}
               </div>
             </div>
             <div>
@@ -96,7 +93,7 @@ export function Invoice({ data, onPrint, onDownload }: InvoiceProps) {
                 <div className="font-semibold" data-testid="text-seller-name">
                   {data.sellerName}
                 </div>
-                <div className="text-sm text-muted-foreground">Saga Inventory</div>
+                <div className="text-sm text-muted-foreground">{businessName}</div>
               </div>
             </div>
           </div>
@@ -173,9 +170,7 @@ export function Invoice({ data, onPrint, onDownload }: InvoiceProps) {
 
           {/* Footer */}
           <div className="text-center space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Thank you for your business!
-            </p>
+            <p className="text-sm text-muted-foreground">{receiptFooter}</p>
             <p className="text-xs text-muted-foreground">
               This is a computer-generated invoice and does not require a signature.
             </p>

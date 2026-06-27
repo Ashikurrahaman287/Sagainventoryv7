@@ -19,6 +19,8 @@ import { exportToCSV } from "@/lib/export";
 import { parseCSV, validateRequired, validateNumber, validateInteger } from "@/lib/import";
 import type { InsertProduct, Supplier, Product } from "@shared/schema";
 
+type ProductWithSupplier = Product & { supplierName?: string | null };
+
 export default function Products() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -29,7 +31,7 @@ export default function Products() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const { data: products = [], isLoading } = useQuery<Product[]>({
+  const { data: products = [], isLoading } = useQuery<ProductWithSupplier[]>({
     queryKey: ["/api/products"],
   });
 
@@ -38,14 +40,14 @@ export default function Products() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: InsertProduct) =>
-      apiRequest("POST", "/api/products", data),
+    mutationFn: (data: InsertProduct) => apiRequest("POST", "/api/products", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({ title: "Product created successfully" });
     },
-    onError: () => {
-      toast({ title: "Failed to create product", variant: "destructive" });
+    onError: (e: any) => {
+      toast({ title: "Failed to create product", description: e.message, variant: "destructive" });
     },
   });
 
@@ -57,21 +59,35 @@ export default function Products() {
       toast({ title: "Product updated successfully" });
       setEditingProduct(null);
     },
-    onError: () => {
-      toast({ title: "Failed to update product", variant: "destructive" });
+    onError: (e: any) => {
+      toast({ title: "Failed to update product", description: e.message, variant: "destructive" });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest("DELETE", `/api/products/${id}`),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/products/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({ title: "Product deleted successfully" });
       setDeletingProduct(null);
     },
-    onError: () => {
-      toast({ title: "Failed to delete product", variant: "destructive" });
+    onError: (e: any) => {
+      toast({ title: "Failed to delete product", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const adjustStockMutation = useMutation({
+    mutationFn: ({ id, quantity, type }: { id: string; quantity: number; type: 'add' | 'set' }) =>
+      apiRequest("POST", `/api/products/${id}/adjust-stock`, { quantity, type }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/low-stock"] });
+      toast({ title: "Stock adjusted successfully" });
+    },
+    onError: (e: any) => {
+      toast({ title: "Failed to adjust stock", description: e.message, variant: "destructive" });
     },
   });
 
@@ -88,26 +104,26 @@ export default function Products() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setDeletingProduct(id);
-  };
+  const handleDelete = (id: string) => setDeletingProduct(id);
 
   const confirmDelete = () => {
-    if (deletingProduct) {
-      deleteMutation.mutate(deletingProduct);
-    }
+    if (deletingProduct) deleteMutation.mutate(deletingProduct);
+  };
+
+  const handleAdjustStock = (id: string, quantity: number, type: 'add' | 'set') => {
+    adjustStockMutation.mutate({ id, quantity, type });
   };
 
   const handleExport = () => {
     exportToCSV(
-      products.map(p => ({
+      products.map((p) => ({
         stockCode: p.stockCode,
         name: p.name,
         category: p.category,
         buyingPrice: p.buyingPrice,
         sellingPrice: p.sellingPrice,
         quantity: p.quantity,
-        supplierId: p.supplierId || "",
+        supplierName: p.supplierName || "",
       })),
       "products",
       [
@@ -117,15 +133,13 @@ export default function Products() {
         { key: "buyingPrice", label: "Buying Price" },
         { key: "sellingPrice", label: "Selling Price" },
         { key: "quantity", label: "Quantity" },
-        { key: "supplierId", label: "Supplier ID" },
+        { key: "supplierName", label: "Supplier" },
       ]
     );
     toast({ title: "Products exported successfully" });
   };
 
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleImportClick = () => fileInputRef.current?.click();
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -164,7 +178,6 @@ export default function Products() {
         return;
       }
 
-      // Import products one by one
       let successCount = 0;
       const failedRows: string[] = [];
       for (let i = 0; i < result.data.length; i++) {
@@ -173,17 +186,18 @@ export default function Products() {
           await apiRequest("POST", "/api/products", product);
           successCount++;
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-          failedRows.push(`Row ${i + 2}: ${product.stockCode || 'Unknown'} - ${errorMsg}`);
+          const errorMsg = error instanceof Error ? error.message : "Unknown error";
+          failedRows.push(`Row ${i + 2}: ${product.stockCode || "Unknown"} - ${errorMsg}`);
         }
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+
       if (failedRows.length > 0) {
         toast({
           title: "Import completed with errors",
-          description: `${successCount} products imported. ${failedRows.length} failed: ${failedRows.slice(0, 2).join(', ')}${failedRows.length > 2 ? '...' : ''}`,
+          description: `${successCount} imported, ${failedRows.length} failed: ${failedRows.slice(0, 2).join(", ")}${failedRows.length > 2 ? "..." : ""}`,
           variant: "destructive",
         });
       } else {
@@ -200,9 +214,7 @@ export default function Products() {
       });
     } finally {
       setIsImporting(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -214,10 +226,10 @@ export default function Products() {
     return matchesSearch && matchesCategory;
   });
 
-  const categories = ["all", ...Array.from(new Set(products.map(p => p.category)))];
+  const categories = ["all", ...Array.from(new Set(products.map((p) => p.category)))];
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full">Loading...</div>;
+    return <div className="flex items-center justify-center h-48 text-muted-foreground">Loading products...</div>;
   }
 
   return (
@@ -236,9 +248,9 @@ export default function Products() {
             className="hidden"
             data-testid="input-import-file"
           />
-          <Button 
-            variant="outline" 
-            onClick={handleImportClick} 
+          <Button
+            variant="outline"
+            onClick={handleImportClick}
             disabled={isImporting}
             data-testid="button-import-products"
           >
@@ -279,10 +291,15 @@ export default function Products() {
         </Select>
       </div>
 
+      <div className="text-sm text-muted-foreground">
+        {filteredProducts.length} of {products.length} products
+      </div>
+
       <ProductTable
         products={filteredProducts}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onAdjustStock={handleAdjustStock}
       />
 
       <ProductFormDialog

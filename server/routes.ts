@@ -8,8 +8,36 @@ import {
   insertProductSchema,
   insertSaleSchema,
 } from "@shared/schema";
+import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // Settings
+  app.get("/api/settings", async (_req, res) => {
+    try {
+      const data = await storage.getSettings();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/settings", async (req, res) => {
+    try {
+      const schema = z.record(z.string(), z.string());
+      const data = schema.parse(req.body);
+      await storage.setSettings(data);
+      const updated = await storage.getSettings();
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Suppliers
   app.get("/api/suppliers", async (_req, res) => {
     const suppliers = await storage.getSuppliers();
@@ -65,15 +93,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Customers
   app.get("/api/customers", async (_req, res) => {
     const customers = await storage.getCustomers();
-    
-    // Enrich with stats
     const enriched = await Promise.all(
       customers.map(async (customer) => {
         const stats = await storage.getCustomerStats(customer.id);
         return { ...customer, ...stats };
       })
     );
-    
     res.json(enriched);
   });
 
@@ -127,15 +152,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sellers
   app.get("/api/sellers", async (_req, res) => {
     const sellers = await storage.getSellers();
-    
-    // Enrich with stats
     const enriched = await Promise.all(
       sellers.map(async (seller) => {
         const stats = await storage.getSellerStats(seller.id);
         return { ...seller, ...stats };
       })
     );
-    
     res.json(enriched);
   });
 
@@ -189,14 +211,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Products
   app.get("/api/products", async (req, res) => {
     const { search } = req.query;
-    
     let products;
     if (search && typeof search === "string") {
       products = await storage.searchProducts(search);
     } else {
       products = await storage.getProducts();
     }
-    
     res.json(products);
   });
 
@@ -210,26 +230,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/products", async (req, res) => {
     try {
-      // Normalize supplierId: convert empty strings to null
       const normalizedBody = {
         ...req.body,
         supplierId: req.body.supplierId && req.body.supplierId.trim() !== "" ? req.body.supplierId : null,
       };
-      
       const data = insertProductSchema.parse(normalizedBody);
-      
-      // Check for duplicate stock code
+
       if (data.stockCode) {
         const existingProduct = await storage.getProductByStockCode(data.stockCode);
         if (existingProduct) {
           return res.status(409).json({ error: "A product with this stock code already exists" });
         }
       }
-      
+
       const product = await storage.createProduct(data);
       res.status(201).json(product);
     } catch (error: any) {
-      // Handle database constraint violations
       if (error.code === '23505') {
         return res.status(409).json({ error: "A product with this stock code already exists" });
       }
@@ -242,24 +258,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/products/:id", async (req, res) => {
     try {
-      // Normalize supplierId: convert empty strings to null
       const normalizedBody = {
         ...req.body,
-        supplierId: req.body.supplierId !== undefined && req.body.supplierId !== null && req.body.supplierId.trim() !== "" 
-          ? req.body.supplierId 
+        supplierId: req.body.supplierId !== undefined && req.body.supplierId !== null && String(req.body.supplierId).trim() !== ""
+          ? req.body.supplierId
           : null,
       };
-      
       const data = insertProductSchema.partial().parse(normalizedBody);
-      
-      // Check for duplicate stock code when updating
+
       if (data.stockCode) {
         const existingProduct = await storage.getProductByStockCode(data.stockCode);
         if (existingProduct && existingProduct.id !== req.params.id) {
           return res.status(409).json({ error: "A product with this stock code already exists" });
         }
       }
-      
+
       const product = await storage.updateProduct(req.params.id, data);
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
@@ -291,15 +304,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sales
-  app.get("/api/sales", async (_req, res) => {
-    const sales = await storage.getSales();
-    res.json(sales);
+  // Stock adjustment
+  app.post("/api/products/:id/adjust-stock", async (req, res) => {
+    try {
+      const schema = z.object({
+        quantity: z.number().int(),
+        type: z.enum(['add', 'set']),
+      });
+      const { quantity, type } = schema.parse(req.body);
+
+      if (type === 'set' && quantity < 0) {
+        return res.status(400).json({ error: "Stock quantity cannot be negative" });
+      }
+
+      const product = await storage.adjustProductStock(req.params.id, quantity, type);
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      res.json(product);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
   });
 
+  // Sales — order matters: specific routes before parameterized
   app.get("/api/sales/recent", async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
     const sales = await storage.getRecentSales(limit);
+    res.json(sales);
+  });
+
+  app.get("/api/sales", async (_req, res) => {
+    const sales = await storage.getSales();
     res.json(sales);
   });
 
@@ -317,7 +353,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await storage.createSale(data);
       res.status(201).json(result);
     } catch (error: any) {
-      // Handle database constraint violations
       if (error.code === '23503') {
         return res.status(400).json({ error: "Invalid customer, seller, or product selected" });
       }
@@ -327,8 +362,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Dashboard
   app.get("/api/dashboard/stats", async (_req, res) => {
-    const stats = await storage.getDashboardStats();
-    res.json(stats);
+    try {
+      const stats = await storage.getDashboardStats();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   app.get("/api/dashboard/low-stock", async (req, res) => {
@@ -337,25 +376,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(products);
   });
 
+  app.get("/api/dashboard/chart", async (req, res) => {
+    try {
+      const days = req.query.days ? parseInt(req.query.days as string) : 7;
+      const data = await storage.getDailyChartData(days);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Reports & Analytics
   app.get("/api/reports/stock", async (_req, res) => {
-    const report = await storage.getStockReportByCategory();
+    const report = await (storage as any).getStockReportByCategory();
     res.json(report);
   });
 
   app.get("/api/reports/sales", async (req, res) => {
     const period = (req.query.period as string) || 'today';
-    const report = await storage.getSalesReportByPeriod(period);
+    const report = await (storage as any).getSalesReportByPeriod(period);
     res.json(report);
   });
 
   app.get("/api/reports/customers", async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
-    const customers = await storage.getTopCustomers(limit);
+    const customers = await (storage as any).getTopCustomers(limit);
     res.json(customers);
   });
 
   const httpServer = createServer(app);
-
   return httpServer;
 }

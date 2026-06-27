@@ -1,0 +1,1 @@
+- [Saga Inventory stack decisions](saga-stack.md) — key architectural decisions for this project to stay consistent with.

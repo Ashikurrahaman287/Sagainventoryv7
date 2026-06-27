@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.gitignore
+*.md
+electron/
+release/
+migrations/
+attached_assets/
+.agents/
+.local/
+.cache/
+docker-compose.yml
+Dockerfile

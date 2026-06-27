@@ -10,6 +10,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import Dashboard from "@/pages/dashboard";
 import Products from "@/pages/products";
 import Sales from "@/pages/sales";
+import SalesHistory from "@/pages/sales-history";
 import Customers from "@/pages/customers";
 import Suppliers from "@/pages/suppliers";
 import Sellers from "@/pages/sellers";
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/products" component={Products} />
       <Route path="/sales" component={Sales} />
+      <Route path="/sales/history" component={SalesHistory} />
       <Route path="/customers" component={Customers} />
       <Route path="/suppliers" component={Suppliers} />
       <Route path="/sellers" component={Sellers} />

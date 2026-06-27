@@ -1,4 +1,4 @@
-import { eq, desc, sql, like, or } from "drizzle-orm";
+import { eq, desc, sql, like, or, and, gte } from "drizzle-orm";
 import { db, schema } from "./db";
 import type {
   Supplier,
@@ -14,7 +14,7 @@ import type {
   InsertSale,
 } from "@shared/schema";
 
-const { suppliers, customers, sellers, products, sales, saleItems } = schema;
+const { suppliers, customers, sellers, products, sales, saleItems, settings } = schema;
 
 export interface IStorage {
   // Suppliers
@@ -39,20 +39,27 @@ export interface IStorage {
   deleteSeller(id: string): Promise<boolean>;
 
   // Products
-  getProducts(): Promise<Product[]>;
+  getProducts(): Promise<(Product & { supplierName?: string | null })[]>;
   getProduct(id: string): Promise<Product | undefined>;
   getProductByStockCode(stockCode: string): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product | undefined>;
   deleteProduct(id: string): Promise<boolean>;
   searchProducts(query: string): Promise<Product[]>;
+  adjustProductStock(id: string, quantity: number, type: 'add' | 'set'): Promise<Product | undefined>;
 
   // Sales
-  getSales(): Promise<Sale[]>;
+  getSales(): Promise<Array<Sale & { customerName: string; sellerName: string }>>;
   getSale(id: string): Promise<Sale | undefined>;
-  getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[] } | undefined>;
+  getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[]; customerName: string; sellerName: string } | undefined>;
   createSale(sale: InsertSale): Promise<{ sale: Sale; items: SaleItem[] }>;
-  
+
+  // Settings
+  getSetting(key: string): Promise<string | undefined>;
+  getSettings(): Promise<Record<string, string>>;
+  setSetting(key: string, value: string): Promise<void>;
+  setSettings(data: Record<string, string>): Promise<void>;
+
   // Analytics
   getDashboardStats(): Promise<{
     totalProducts: number;
@@ -64,6 +71,7 @@ export interface IStorage {
   getRecentSales(limit: number): Promise<Array<Sale & { customerName: string; sellerName: string }>>;
   getCustomerStats(customerId: string): Promise<{ totalPurchases: number; totalSpent: number }>;
   getSellerStats(sellerId: string): Promise<{ totalSales: number; totalRevenue: number }>;
+  getDailyChartData(days: number): Promise<Array<{ date: string; sales: number; profit: number }>>;
 }
 
 export class DbStorage implements IStorage {
@@ -142,9 +150,25 @@ export class DbStorage implements IStorage {
     return result.length > 0;
   }
 
-  // Products
-  async getProducts(): Promise<Product[]> {
-    return db.select().from(products).orderBy(desc(products.createdAt));
+  // Products — include supplier name
+  async getProducts(): Promise<(Product & { supplierName?: string | null })[]> {
+    const result = await db
+      .select({
+        id: products.id,
+        stockCode: products.stockCode,
+        name: products.name,
+        category: products.category,
+        buyingPrice: products.buyingPrice,
+        sellingPrice: products.sellingPrice,
+        quantity: products.quantity,
+        supplierId: products.supplierId,
+        createdAt: products.createdAt,
+        supplierName: suppliers.name,
+      })
+      .from(products)
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .orderBy(desc(products.createdAt));
+    return result;
   }
 
   async getProduct(id: string): Promise<Product | undefined> {
@@ -183,9 +207,43 @@ export class DbStorage implements IStorage {
     ).limit(20);
   }
 
-  // Sales
-  async getSales(): Promise<Sale[]> {
-    return db.select().from(sales).orderBy(desc(sales.createdAt));
+  async adjustProductStock(id: string, quantity: number, type: 'add' | 'set'): Promise<Product | undefined> {
+    let result;
+    if (type === 'set') {
+      result = await db.update(products)
+        .set({ quantity })
+        .where(eq(products.id, id))
+        .returning();
+    } else {
+      result = await db.update(products)
+        .set({ quantity: sql`${products.quantity} + ${quantity}` })
+        .where(eq(products.id, id))
+        .returning();
+    }
+    return result[0];
+  }
+
+  // Sales — always join with customer and seller names
+  async getSales(): Promise<Array<Sale & { customerName: string; sellerName: string }>> {
+    return db.select({
+      id: sales.id,
+      receiptNumber: sales.receiptNumber,
+      customerId: sales.customerId,
+      sellerId: sales.sellerId,
+      subtotal: sales.subtotal,
+      discount: sales.discount,
+      discountType: sales.discountType,
+      total: sales.total,
+      paymentMethod: sales.paymentMethod,
+      notes: sales.notes,
+      createdAt: sales.createdAt,
+      customerName: customers.name,
+      sellerName: sellers.name,
+    })
+    .from(sales)
+    .innerJoin(customers, eq(sales.customerId, customers.id))
+    .innerJoin(sellers, eq(sales.sellerId, sellers.id))
+    .orderBy(desc(sales.createdAt));
   }
 
   async getSale(id: string): Promise<Sale | undefined> {
@@ -193,20 +251,58 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[] } | undefined> {
-    const sale = await this.getSale(id);
-    if (!sale) return undefined;
+  async getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[]; customerName: string; sellerName: string } | undefined> {
+    const saleResult = await db
+      .select({
+        id: sales.id,
+        receiptNumber: sales.receiptNumber,
+        customerId: sales.customerId,
+        sellerId: sales.sellerId,
+        subtotal: sales.subtotal,
+        discount: sales.discount,
+        discountType: sales.discountType,
+        total: sales.total,
+        paymentMethod: sales.paymentMethod,
+        notes: sales.notes,
+        createdAt: sales.createdAt,
+        customerName: customers.name,
+        customerEmail: customers.email,
+        customerPhone: customers.phone,
+        sellerName: sellers.name,
+      })
+      .from(sales)
+      .innerJoin(customers, eq(sales.customerId, customers.id))
+      .innerJoin(sellers, eq(sales.sellerId, sellers.id))
+      .where(eq(sales.id, id))
+      .limit(1);
+
+    if (!saleResult[0]) return undefined;
 
     const items = await db.select().from(saleItems).where(eq(saleItems.saleId, id));
-    return { sale, items };
+    const { customerName, sellerName, ...sale } = saleResult[0] as any;
+    return { sale, items, customerName, sellerName };
   }
 
   async createSale(saleData: InsertSale): Promise<{ sale: Sale; items: SaleItem[] }> {
     const { items: saleItemsData, ...saleInfo } = saleData;
 
-    // Generate receipt number
-    const count = await db.select({ count: sql<number>`count(*)` }).from(sales);
-    const receiptNumber = `RCP-${new Date().getFullYear()}-${String(count[0].count + 1).padStart(6, '0')}`;
+    // Validate stock for all items first
+    for (const item of saleItemsData) {
+      const product = await this.getProduct(item.productId);
+      if (!product) {
+        throw new Error(`Product ${item.productId} not found`);
+      }
+      if (product.quantity < item.quantity) {
+        throw new Error(`Insufficient stock for "${product.name}". Available: ${product.quantity}, Requested: ${item.quantity}`);
+      }
+    }
+
+    // Generate unique receipt number using timestamp + random suffix to avoid race conditions
+    const now = new Date();
+    const year = now.getFullYear();
+    const timestamp = now.getTime().toString().slice(-6);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    const receiptNumber = `RCP-${year}-${timestamp}${random}`;
 
     // Create sale
     const saleResult = await db.insert(sales).values({
@@ -233,40 +329,66 @@ export class DbStorage implements IStorage {
     return { sale, items };
   }
 
+  // Settings
+  async getSetting(key: string): Promise<string | undefined> {
+    const result = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
+    return result[0]?.value;
+  }
+
+  async getSettings(): Promise<Record<string, string>> {
+    const result = await db.select().from(settings);
+    return Object.fromEntries(result.map(r => [r.key, r.value]));
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    await db.insert(settings)
+      .values({ key, value })
+      .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
+  }
+
+  async setSettings(data: Record<string, string>): Promise<void> {
+    for (const [key, value] of Object.entries(data)) {
+      await this.setSetting(key, value);
+    }
+  }
+
   // Analytics
   async getDashboardStats() {
     const totalProductsResult = await db.select({ count: sql<number>`count(*)` }).from(products);
-    const totalProducts = totalProductsResult[0].count;
+    const totalProducts = Number(totalProductsResult[0].count);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const todaysSalesResult = await db.select({
       total: sql<number>`COALESCE(SUM(CAST(${sales.total} AS NUMERIC)), 0)`,
-      count: sql<number>`count(*)`
     })
     .from(sales)
-    .where(sql`${sales.createdAt} >= ${today}`);
+    .where(gte(sales.createdAt, today));
 
     const todaysSales = Number(todaysSalesResult[0]?.total || 0);
 
+    // Use saved threshold or default 20
+    const thresholdSetting = await this.getSetting('lowStockThreshold');
+    const threshold = thresholdSetting ? parseInt(thresholdSetting) : 20;
+
     const lowStockResult = await db.select({ count: sql<number>`count(*)` })
       .from(products)
-      .where(sql`${products.quantity} < 20`);
-    const lowStockCount = lowStockResult[0].count;
+      .where(sql`${products.quantity} < ${threshold}`);
+    const lowStockCount = Number(lowStockResult[0].count);
 
-    // Calculate today's profit
+    // Real profit from actual buying prices in sale_items
     const todaysProfitResult = await db.select({
       profit: sql<number>`
         COALESCE(SUM(
-          (CAST(${saleItems.unitPrice} AS NUMERIC) - CAST(${saleItems.buyingPrice} AS NUMERIC)) 
+          (CAST(${saleItems.unitPrice} AS NUMERIC) - CAST(${saleItems.buyingPrice} AS NUMERIC))
           * ${saleItems.quantity}
         ), 0)
       `
     })
     .from(saleItems)
     .innerJoin(sales, eq(saleItems.saleId, sales.id))
-    .where(sql`${sales.createdAt} >= ${today}`);
+    .where(gte(sales.createdAt, today));
 
     const todaysProfit = Number(todaysProfitResult[0]?.profit || 0);
 
@@ -279,11 +401,16 @@ export class DbStorage implements IStorage {
   }
 
   async getLowStockProducts(threshold: number = 20): Promise<Product[]> {
-    return db.select().from(products).where(sql`${products.quantity} < ${threshold}`).orderBy(products.quantity);
+    // Also respect saved threshold setting
+    const thresholdSetting = await this.getSetting('lowStockThreshold');
+    const effectiveThreshold = thresholdSetting ? parseInt(thresholdSetting) : threshold;
+    return db.select().from(products)
+      .where(sql`${products.quantity} < ${effectiveThreshold}`)
+      .orderBy(products.quantity);
   }
 
   async getRecentSales(limit: number = 10) {
-    const result = await db.select({
+    return db.select({
       id: sales.id,
       receiptNumber: sales.receiptNumber,
       customerId: sales.customerId,
@@ -293,6 +420,7 @@ export class DbStorage implements IStorage {
       discountType: sales.discountType,
       total: sales.total,
       paymentMethod: sales.paymentMethod,
+      notes: sales.notes,
       createdAt: sales.createdAt,
       customerName: customers.name,
       sellerName: sellers.name,
@@ -302,8 +430,6 @@ export class DbStorage implements IStorage {
     .innerJoin(sellers, eq(sales.sellerId, sellers.id))
     .orderBy(desc(sales.createdAt))
     .limit(limit);
-
-    return result;
   }
 
   async getCustomerStats(customerId: string) {
@@ -315,7 +441,7 @@ export class DbStorage implements IStorage {
     .where(eq(sales.customerId, customerId));
 
     return {
-      totalPurchases: result[0]?.totalPurchases || 0,
+      totalPurchases: Number(result[0]?.totalPurchases || 0),
       totalSpent: Number(result[0]?.totalSpent || 0),
     };
   }
@@ -329,17 +455,22 @@ export class DbStorage implements IStorage {
     .where(eq(sales.sellerId, sellerId));
 
     return {
-      totalSales: result[0]?.totalSales || 0,
+      totalSales: Number(result[0]?.totalSales || 0),
       totalRevenue: Number(result[0]?.totalRevenue || 0),
     };
   }
 
   async getStockReportByCategory() {
+    const thresholdSetting = await this.getSetting('lowStockThreshold');
+    const threshold = thresholdSetting ? parseInt(thresholdSetting) : 20;
+
     const result = await db.select({
       category: products.category,
       productCount: sql<number>`count(*)`,
       totalValue: sql<number>`COALESCE(SUM(CAST(${products.quantity} AS NUMERIC) * CAST(${products.sellingPrice} AS NUMERIC)), 0)`,
-      lowStockCount: sql<number>`COUNT(CASE WHEN CAST(${products.quantity} AS INTEGER) < 20 THEN 1 END)`,
+      totalCostValue: sql<number>`COALESCE(SUM(CAST(${products.quantity} AS NUMERIC) * CAST(${products.buyingPrice} AS NUMERIC)), 0)`,
+      lowStockCount: sql<number>`COUNT(CASE WHEN CAST(${products.quantity} AS INTEGER) < ${threshold} THEN 1 END)`,
+      totalQuantity: sql<number>`COALESCE(SUM(${products.quantity}), 0)`,
     })
     .from(products)
     .groupBy(products.category)
@@ -349,47 +480,57 @@ export class DbStorage implements IStorage {
       category: row.category,
       products: Number(row.productCount),
       value: Number(row.totalValue),
+      costValue: Number(row.totalCostValue),
+      totalQuantity: Number(row.totalQuantity),
       status: Number(row.lowStockCount) > 0 ? 'low' : 'healthy',
     }));
   }
 
   async getSalesReportByPeriod(period: string) {
     const now = new Date();
-    let dateFilter;
+    let startDate: Date;
 
     switch (period) {
       case 'today':
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        dateFilter = sql`${sales.createdAt} >= ${todayStart}`;
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         break;
       case 'week':
-        const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        dateFilter = sql`${sales.createdAt} >= ${weekStart}`;
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case 'month':
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        dateFilter = sql`${sales.createdAt} >= ${monthStart}`;
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         break;
       case 'year':
-        const yearStart = new Date(now.getFullYear(), 0, 1);
-        dateFilter = sql`${sales.createdAt} >= ${yearStart}`;
+        startDate = new Date(now.getFullYear(), 0, 1);
         break;
       default:
-        dateFilter = sql`1=1`;
+        startDate = new Date(0);
     }
 
-    const result = await db.select({
+    const salesResult = await db.select({
       transactions: sql<number>`count(*)`,
       revenue: sql<number>`COALESCE(SUM(CAST(${sales.total} AS NUMERIC)), 0)`,
-      profit: sql<number>`COALESCE(SUM(CAST(${sales.total} AS NUMERIC) - CAST(${sales.subtotal} AS NUMERIC) * 0.6), 0)`,
     })
     .from(sales)
-    .where(dateFilter);
+    .where(gte(sales.createdAt, startDate));
+
+    // Real profit from actual buying prices
+    const profitResult = await db.select({
+      profit: sql<number>`
+        COALESCE(SUM(
+          (CAST(${saleItems.unitPrice} AS NUMERIC) - CAST(${saleItems.buyingPrice} AS NUMERIC))
+          * ${saleItems.quantity}
+        ), 0)
+      `
+    })
+    .from(saleItems)
+    .innerJoin(sales, eq(saleItems.saleId, sales.id))
+    .where(gte(sales.createdAt, startDate));
 
     return {
-      transactions: Number(result[0]?.transactions || 0),
-      revenue: Number(result[0]?.revenue || 0),
-      profit: Number(result[0]?.profit || 0),
+      transactions: Number(salesResult[0]?.transactions || 0),
+      revenue: Number(salesResult[0]?.revenue || 0),
+      profit: Number(profitResult[0]?.profit || 0),
     };
   }
 
@@ -411,6 +552,37 @@ export class DbStorage implements IStorage {
       purchases: Number(row.purchases),
       spent: Number(row.spent),
     }));
+  }
+
+  async getDailyChartData(days: number = 7): Promise<Array<{ date: string; sales: number; profit: number }>> {
+    const results = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      const nextDate = new Date(date);
+      nextDate.setDate(nextDate.getDate() + 1);
+
+      const salesResult = await db.select({
+        total: sql<number>`COALESCE(SUM(CAST(${sales.total} AS NUMERIC)), 0)`,
+      })
+      .from(sales)
+      .where(and(gte(sales.createdAt, date), sql`${sales.createdAt} < ${nextDate}`));
+
+      const profitResult = await db.select({
+        profit: sql<number>`COALESCE(SUM((CAST(${saleItems.unitPrice} AS NUMERIC) - CAST(${saleItems.buyingPrice} AS NUMERIC)) * ${saleItems.quantity}), 0)`,
+      })
+      .from(saleItems)
+      .innerJoin(sales, eq(saleItems.saleId, sales.id))
+      .where(and(gte(sales.createdAt, date), sql`${sales.createdAt} < ${nextDate}`));
+
+      results.push({
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        sales: Number(salesResult[0]?.total || 0),
+        profit: Number(profitResult[0]?.profit || 0),
+      });
+    }
+    return results;
   }
 }
 

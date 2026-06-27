@@ -35,7 +35,12 @@ export default function Sales() {
   const [customer, setCustomer] = useState("");
   const [seller, setSeller] = useState("");
   const [showInvoice, setShowInvoice] = useState(false);
-  const [completedSale, setCompletedSale] = useState<{sale: Sale, items: SaleItem[], customerData: Customer, sellerData: Seller} | null>(null);
+  const [completedSale, setCompletedSale] = useState<{
+    sale: Sale;
+    items: SaleItem[];
+    customerData: Customer;
+    sellerData: Seller;
+  } | null>(null);
   const { toast } = useToast();
 
   const { data: products = [] } = useQuery<Product[]>({
@@ -50,30 +55,36 @@ export default function Sales() {
     queryKey: ["/api/sellers"],
   });
 
+  const { data: settings } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings"],
+  });
+
   const createSaleMutation = useMutation({
-    mutationFn: (data: InsertSale) =>
-      apiRequest("POST", "/api/sales", data),
+    mutationFn: (data: InsertSale) => apiRequest("POST", "/api/sales", data),
     onSuccess: async (response) => {
       const result = await response.json();
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      
-      const customerData = customers.find(c => c.id === customer)!;
-      const sellerData = sellers.find(s => s.id === seller)!;
-      setCompletedSale({ ...result, customerData, sellerData });
-      setShowInvoice(true);
-      
-      // Reset form
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/chart"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sales/recent"] });
+
+      const customerData = customers.find((c) => c.id === customer);
+      const sellerData = sellers.find((s) => s.id === seller);
+      if (customerData && sellerData) {
+        setCompletedSale({ ...result, customerData, sellerData });
+        setShowInvoice(true);
+      }
+
       setCartItems([]);
       setDiscount(0);
       setCustomer("");
       setSeller("");
-      
+
       toast({ title: "Sale completed successfully!" });
     },
-    onError: () => {
-      toast({ title: "Failed to complete sale", variant: "destructive" });
+    onError: (e: any) => {
+      toast({ title: "Failed to complete sale", description: e.message, variant: "destructive" });
     },
   });
 
@@ -81,7 +92,7 @@ export default function Sales() {
     (product) =>
       product.quantity > 0 &&
       (product.name.toLowerCase().includes(search.toLowerCase()) ||
-      product.stockCode.toLowerCase().includes(search.toLowerCase()))
+        product.stockCode.toLowerCase().includes(search.toLowerCase()))
   );
 
   const addToCart = (product: Product) => {
@@ -90,11 +101,15 @@ export default function Sales() {
       if (existing.quantity < product.quantity) {
         setCartItems((prev) =>
           prev.map((item) =>
-            item.id === product.id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
+            item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
           )
         );
+      } else {
+        toast({
+          title: "Stock limit reached",
+          description: `Only ${product.quantity} units available`,
+          variant: "destructive",
+        });
       }
     } else {
       setCartItems((prev) => [
@@ -112,6 +127,15 @@ export default function Sales() {
   };
 
   const handleQuantityChange = (id: string, quantity: number) => {
+    const item = cartItems.find((i) => i.id === id);
+    if (item && quantity > item.availableStock) {
+      toast({
+        title: "Exceeds available stock",
+        description: `Only ${item.availableStock} units available`,
+        variant: "destructive",
+      });
+      return;
+    }
     setCartItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, quantity } : item))
     );
@@ -122,28 +146,31 @@ export default function Sales() {
   };
 
   const handleCompleteSale = async () => {
+    if (!customer || !seller || cartItems.length === 0) return;
+
     const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const discountAmount = discountType === "percentage" ? (subtotal * discount) / 100 : discount;
+    const discountAmount =
+      discountType === "percentage" ? (subtotal * discount) / 100 : discount;
     const total = Math.max(0, subtotal - discountAmount);
 
     const saleData: InsertSale = {
       customerId: customer,
       sellerId: seller,
-      subtotal: subtotal.toString(),
+      subtotal: subtotal.toFixed(2),
       discount: discount.toString(),
       discountType,
-      total: total.toString(),
+      total: total.toFixed(2),
       paymentMethod,
-      items: cartItems.map(item => {
-        const product = products.find(p => p.id === item.id)!;
+      items: cartItems.map((item) => {
+        const product = products.find((p) => p.id === item.id);
         return {
           productId: item.id,
           productName: item.name,
           stockCode: item.stockCode,
           quantity: item.quantity,
-          unitPrice: item.price.toString(),
-          buyingPrice: product.buyingPrice,
-          subtotal: (item.price * item.quantity).toString(),
+          unitPrice: item.price.toFixed(2),
+          buyingPrice: product?.buyingPrice ?? "0",
+          subtotal: (item.price * item.quantity).toFixed(2),
         };
       }),
     };
@@ -151,7 +178,8 @@ export default function Sales() {
     await createSaleMutation.mutateAsync(saleData);
   };
 
-  const canCompleteSale = cartItems.length > 0 && customer && seller;
+  const canCompleteSale =
+    cartItems.length > 0 && customer && seller && !createSaleMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -174,11 +202,17 @@ export default function Sales() {
                 testId="input-search-sale-products"
               />
 
+              {filteredProducts.length === 0 && search && (
+                <div className="text-center py-6 text-muted-foreground">
+                  No products found for "{search}"
+                </div>
+              )}
+
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
-                    className="flex items-center justify-between p-3 rounded-md border hover-elevate active-elevate-2 cursor-pointer"
+                    className="flex items-center justify-between p-3 rounded-md border hover:bg-muted/30 cursor-pointer transition-colors"
                     onClick={() => addToCart(product)}
                     data-testid={`product-item-${product.id}`}
                   >
@@ -190,12 +224,12 @@ export default function Sales() {
                     </div>
                     <div className="flex items-center gap-3">
                       <Badge variant={product.quantity < 20 ? "warning" : "success"}>
-                        Stock: {product.quantity}
+                        {product.quantity} left
                       </Badge>
                       <div className="font-mono font-semibold">
                         ${parseFloat(product.sellingPrice).toFixed(2)}
                       </div>
-                      <Button size="sm" data-testid={`button-add-${product.id}`}>
+                      <Button size="sm" data-testid={`button-add-${product.id}`} onClick={(e) => { e.stopPropagation(); addToCart(product); }}>
                         <ShoppingCart className="h-4 w-4" />
                       </Button>
                     </div>
@@ -266,7 +300,9 @@ export default function Sales() {
                 onClick={handleCompleteSale}
                 data-testid="button-complete-sale"
               >
-                Complete Sale & Generate Invoice
+                {createSaleMutation.isPending
+                  ? "Processing..."
+                  : "Complete Sale & Generate Invoice"}
               </Button>
             </CardContent>
           </Card>
@@ -287,7 +323,9 @@ export default function Sales() {
                 customerEmail: completedSale.customerData.email,
                 customerPhone: completedSale.customerData.phone,
                 sellerName: completedSale.sellerData.name,
-                items: completedSale.items.map(item => ({
+                businessName: settings?.businessName,
+                receiptFooter: settings?.receiptFooter,
+                items: completedSale.items.map((item) => ({
                   stockCode: item.stockCode,
                   name: item.productName,
                   quantity: item.quantity,

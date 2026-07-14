@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Package, Eye, EyeOff, Lock, AlertCircle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Lock, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,11 +41,14 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo / Brand */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg mb-4">
-            <Package className="h-8 w-8" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Saga Inventory</h1>
-          <p className="text-muted-foreground text-sm mt-1">Sign in to continue</p>
+          <img
+            src="/ug-hub-logo.png"
+            alt="Undergraduate Hub"
+            className="h-24 w-24 object-contain mb-4"
+          />
+          <h1 className="text-2xl font-bold tracking-tight text-center">Undergraduate Hub</h1>
+          <p className="text-sm font-medium text-muted-foreground mt-0.5">Saga Inventory</p>
+          <p className="text-muted-foreground text-xs mt-1">Sign in to continue</p>
         </div>
 
         {/* Login card */}
@@ -79,16 +82,11 @@ export default function LoginPage() {
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Error message */}
             {errorMessage && (
               <div
                 className="flex items-start gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2.5 text-sm text-destructive"
@@ -119,7 +117,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Saga Inventory Management System
+          Undergraduate Hub &mdash; Saga Inventory Management System
         </p>
       </div>
     </div>

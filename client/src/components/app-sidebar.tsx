@@ -74,14 +74,16 @@ function NavGroup({ label, items }: { label?: string; items: typeof mainItems })
 export function AppSidebar() {
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Package className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold">Saga Inventory</h1>
-            <p className="text-xs text-muted-foreground">Inventory Management</p>
+      <SidebarHeader className="p-4 border-b border-sidebar-border">
+        <div className="flex items-center gap-3">
+          <img
+            src="/ug-hub-logo.png"
+            alt="Undergraduate Hub"
+            className="h-10 w-10 object-contain flex-shrink-0"
+          />
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold leading-tight truncate">Undergraduate Hub</h1>
+            <p className="text-xs text-muted-foreground leading-tight">Saga Inventory</p>
           </div>
         </div>
       </SidebarHeader>

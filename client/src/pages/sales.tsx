@@ -227,7 +227,7 @@ export default function Sales() {
                         {product.quantity} left
                       </Badge>
                       <div className="font-mono font-semibold">
-                        ${parseFloat(product.sellingPrice).toFixed(2)}
+                        ৳{parseFloat(product.sellingPrice).toFixed(2)}
                       </div>
                       <Button size="sm" data-testid={`button-add-${product.id}`} onClick={(e) => { e.stopPropagation(); addToCart(product); }}>
                         <ShoppingCart className="h-4 w-4" />

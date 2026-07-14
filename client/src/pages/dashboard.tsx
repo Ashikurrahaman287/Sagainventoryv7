@@ -97,7 +97,7 @@ export default function Dashboard() {
             />
             <StatCard
               title="Today's Sales"
-              value={`$${(stats?.todaysSales ?? 0).toFixed(2)}`}
+              value={`৳${(stats?.todaysSales ?? 0).toFixed(2)}`}
               icon={DollarSign}
               testId="card-todays-sales"
             />
@@ -109,7 +109,7 @@ export default function Dashboard() {
             />
             <StatCard
               title="Profit Today"
-              value={`$${(stats?.todaysProfit ?? 0).toFixed(2)}`}
+              value={`৳${(stats?.todaysProfit ?? 0).toFixed(2)}`}
               icon={TrendingUp}
               testId="card-profit"
             />
@@ -140,14 +140,14 @@ export default function Dashboard() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `$${v}`} />
+                <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `৳${v}`} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
                     border: "1px solid hsl(var(--border))",
                     borderRadius: "8px",
                   }}
-                  formatter={(value: number, name: string) => [`$${value.toFixed(2)}`, name === "sales" ? "Sales" : "Profit"]}
+                  formatter={(value: number, name: string) => [`৳${value.toFixed(2)}`, name === "sales" ? "Sales" : "Profit"]}
                 />
                 <Area
                   type="monotone"
@@ -257,7 +257,7 @@ export default function Dashboard() {
                         {sale.paymentMethod}
                       </Badge>
                       <div className="font-mono font-semibold">
-                        ${parseFloat(sale.total).toFixed(2)}
+                        ৳{parseFloat(sale.total).toFixed(2)}
                       </div>
                     </div>
                   </div>

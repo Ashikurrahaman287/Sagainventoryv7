@@ -100,10 +100,10 @@ export function ProductTable({ products, onEdit, onDelete, onAdjustStock }: Prod
                       {product.quantity}
                     </TableCell>
                     <TableCell className="text-right font-mono text-muted-foreground">
-                      ${parseFloat(product.buyingPrice).toFixed(2)}
+                      ৳{parseFloat(product.buyingPrice).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      ${parseFloat(product.sellingPrice).toFixed(2)}
+                      ৳{parseFloat(product.sellingPrice).toFixed(2)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={status.variant}>{status.label}</Badge>

@@ -78,10 +78,10 @@ export function ReceiptPreview({ data }: ReceiptPreviewProps) {
                 </div>
                 <div className="col-span-2 text-right font-mono">{item.quantity}</div>
                 <div className="col-span-3 text-right font-mono">
-                  ${item.unitPrice.toFixed(2)}
+                  ৳{item.unitPrice.toFixed(2)}
                 </div>
                 <div className="col-span-3 text-right font-mono font-medium">
-                  ${item.subtotal.toFixed(2)}
+                  ৳{item.subtotal.toFixed(2)}
                 </div>
               </div>
             </div>
@@ -93,12 +93,12 @@ export function ReceiptPreview({ data }: ReceiptPreviewProps) {
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Subtotal:</span>
-            <span className="font-mono">${data.subtotal.toFixed(2)}</span>
+            <span className="font-mono">৳{data.subtotal.toFixed(2)}</span>
           </div>
           {data.discount > 0 && (
             <div className="flex justify-between text-destructive">
               <span>Discount:</span>
-              <span className="font-mono">-${data.discount.toFixed(2)}</span>
+              <span className="font-mono">-৳{data.discount.toFixed(2)}</span>
             </div>
           )}
           <div className="flex justify-between">
@@ -109,7 +109,7 @@ export function ReceiptPreview({ data }: ReceiptPreviewProps) {
           <div className="flex justify-between text-lg font-bold">
             <span>Total:</span>
             <span className="font-mono" data-testid="text-receipt-total">
-              ${data.total.toFixed(2)}
+              ৳{data.total.toFixed(2)}
             </span>
           </div>
         </div>

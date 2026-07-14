@@ -81,7 +81,7 @@ function ProfitCards() {
             ) : period.data ? (
               <>
                 <div className="text-3xl font-bold font-mono text-success" data-testid={`profit-${period.value}`}>
-                  ${period.data.profit.toFixed(2)}
+                  ৳{period.data.profit.toFixed(2)}
                 </div>
                 <div className="text-sm text-muted-foreground mt-1">
                   From {period.data.transactions} transactions
@@ -299,7 +299,7 @@ export default function Reports() {
                       </div>
                       <div className="text-right">
                         <div className="font-mono font-semibold" data-testid={`stock-value-${item.category}`}>
-                          ${item.value.toFixed(2)}
+                          ৳{item.value.toFixed(2)}
                         </div>
                         <div
                           className={`text-sm ${
@@ -349,10 +349,10 @@ export default function Reports() {
                     </div>
                     <div className="text-right space-y-1">
                       <div className="font-mono font-semibold" data-testid="text-revenue">
-                        ${salesData.revenue.toFixed(2)}
+                        ৳{salesData.revenue.toFixed(2)}
                       </div>
                       <div className="text-sm text-success" data-testid="text-profit">
-                        Profit: ${salesData.profit.toFixed(2)}
+                        Profit: ৳{salesData.profit.toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -402,7 +402,7 @@ export default function Reports() {
                         </div>
                       </div>
                       <div className="font-mono font-semibold" data-testid={`customer-spent-${index}`}>
-                        ${customer.spent.toFixed(2)}
+                        ৳{customer.spent.toFixed(2)}
                       </div>
                     </div>
                   ))}

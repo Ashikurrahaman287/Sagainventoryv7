@@ -45,7 +45,7 @@ export function exportToCSV<T extends Record<string, any>>(
 
 export function formatCurrency(value: number | string): string {
   const num = typeof value === "string" ? parseFloat(value) : value;
-  return `$${num.toFixed(2)}`;
+  return `৳${num.toFixed(2)}`;
 }
 
 export function formatDate(date: Date | string): string {

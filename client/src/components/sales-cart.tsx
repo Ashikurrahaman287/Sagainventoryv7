@@ -64,7 +64,7 @@ export function SalesCart({
                       {item.stockCode}
                     </div>
                     <div className="text-sm font-mono mt-1">
-                      ${item.price.toFixed(2)} × {item.quantity}
+                      ৳{item.price.toFixed(2)} × {item.quantity}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -148,7 +148,7 @@ export function SalesCart({
                     className="w-16"
                     data-testid="button-discount-fixed"
                   >
-                    $
+                    ৳
                   </Button>
                 </div>
               </div>
@@ -157,14 +157,14 @@ export function SalesCart({
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal:</span>
                   <span className="font-mono" data-testid="text-subtotal">
-                    ${subtotal.toFixed(2)}
+                    ৳{subtotal.toFixed(2)}
                   </span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-destructive">
                     <span>Discount:</span>
                     <span className="font-mono" data-testid="text-discount-amount">
-                      -${discountAmount.toFixed(2)}
+                      -৳{discountAmount.toFixed(2)}
                     </span>
                   </div>
                 )}
@@ -172,7 +172,7 @@ export function SalesCart({
                 <div className="flex justify-between text-lg font-semibold">
                   <span>Total:</span>
                   <span className="font-mono" data-testid="text-total">
-                    ${total.toFixed(2)}
+                    ৳{total.toFixed(2)}
                   </span>
                 </div>
               </div>

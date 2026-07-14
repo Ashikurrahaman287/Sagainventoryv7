@@ -179,7 +179,7 @@ export default function SalesHistory() {
           <CardContent className="pt-6">
             <div className="text-sm text-muted-foreground">Total Revenue (filtered)</div>
             <div className="text-3xl font-bold font-mono mt-1 text-success" data-testid="text-total-revenue">
-              ${totalRevenue.toFixed(2)}
+              ৳{totalRevenue.toFixed(2)}
             </div>
           </CardContent>
         </Card>
@@ -246,10 +246,10 @@ export default function SalesHistory() {
                       {sale.paymentMethod}
                     </Badge>
                     <div className="text-right">
-                      <div className="font-mono font-bold">${parseFloat(sale.total).toFixed(2)}</div>
+                      <div className="font-mono font-bold">৳{parseFloat(sale.total).toFixed(2)}</div>
                       {parseFloat(sale.discount) > 0 && (
                         <div className="text-xs text-muted-foreground">
-                          -{sale.discountType === "percentage" ? `${sale.discount}%` : `$${parseFloat(sale.discount).toFixed(2)}`} off
+                          -{sale.discountType === "percentage" ? `${sale.discount}%` : `৳${parseFloat(sale.discount).toFixed(2)}`} off
                         </div>
                       )}
                     </div>

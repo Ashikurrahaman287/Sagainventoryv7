@@ -45,8 +45,8 @@ function buildPrintHTML(data: InvoiceData): string {
         <td class="item-name">${item.name}</td>
         <td class="mono">${item.stockCode}</td>
         <td class="right mono">${item.quantity}</td>
-        <td class="right mono">$${item.unitPrice.toFixed(2)}</td>
-        <td class="right mono bold">$${item.subtotal.toFixed(2)}</td>
+        <td class="right mono">৳${item.unitPrice.toFixed(2)}</td>
+        <td class="right mono bold">৳${item.subtotal.toFixed(2)}</td>
       </tr>`
     )
     .join("");
@@ -331,20 +331,20 @@ function buildPrintHTML(data: InvoiceData): string {
       <div class="totals-box">
         <div class="totals-row">
           <span>Subtotal</span>
-          <span class="mono">$${data.subtotal.toFixed(2)}</span>
+          <span class="mono">৳${data.subtotal.toFixed(2)}</span>
         </div>
         ${
           data.discount > 0
             ? `<div class="totals-row discount">
                 <span>Discount ${data.discountType === "percentage" ? `(${data.discount}%)` : ""}</span>
-                <span class="mono">-$${discountAmount.toFixed(2)}</span>
+                <span class="mono">-৳${discountAmount.toFixed(2)}</span>
                </div>`
             : ""
         }
         <div class="totals-divider"></div>
         <div class="totals-row grand-total">
           <span>Total</span>
-          <span>$${data.total.toFixed(2)}</span>
+          <span>৳${data.total.toFixed(2)}</span>
         </div>
         <div class="totals-row payment">
           <span>Payment Method</span>
@@ -474,10 +474,10 @@ export function Invoice({ data }: InvoiceProps) {
                 <td className="py-3 font-mono text-xs text-gray-400">{item.stockCode}</td>
                 <td className="py-3 text-right font-mono text-sm text-gray-700">{item.quantity}</td>
                 <td className="py-3 text-right font-mono text-sm text-gray-700">
-                  ${item.unitPrice.toFixed(2)}
+                  ৳{item.unitPrice.toFixed(2)}
                 </td>
                 <td className="py-3 text-right font-mono text-sm font-bold text-gray-900">
-                  ${item.subtotal.toFixed(2)}
+                  ৳{item.subtotal.toFixed(2)}
                 </td>
               </tr>
             ))}
@@ -489,20 +489,20 @@ export function Invoice({ data }: InvoiceProps) {
           <div className="w-72 space-y-2">
             <div className="flex justify-between text-sm text-gray-600">
               <span>Subtotal</span>
-              <span className="font-mono">${data.subtotal.toFixed(2)}</span>
+              <span className="font-mono">৳{data.subtotal.toFixed(2)}</span>
             </div>
             {data.discount > 0 && (
               <div className="flex justify-between text-sm text-red-600">
                 <span>
                   Discount{data.discountType === "percentage" ? ` (${data.discount}%)` : ""}
                 </span>
-                <span className="font-mono">-${discountAmount.toFixed(2)}</span>
+                <span className="font-mono">-৳{discountAmount.toFixed(2)}</span>
               </div>
             )}
             <div className="border-t border-gray-200 pt-2 flex justify-between text-lg font-bold text-gray-900">
               <span>Total</span>
               <span className="font-mono" data-testid="text-invoice-total">
-                ${data.total.toFixed(2)}
+                ৳{data.total.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between text-xs text-gray-500 pt-1">

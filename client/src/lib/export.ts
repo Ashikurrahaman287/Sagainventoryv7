@@ -1,4 +1,11 @@
-// Export utilities for CSV and data export
+function quoteCSVField(value: unknown): string {
+  const str = String(value ?? "");
+  // Always quote if contains comma, quote, newline, or leading/trailing whitespace
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r") || str !== str.trim()) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
 
 export function exportToCSV<T extends Record<string, any>>(
   data: T[],
@@ -7,40 +14,48 @@ export function exportToCSV<T extends Record<string, any>>(
 ) {
   if (data.length === 0) return;
 
-  // If columns not provided, use all keys from first object
   const cols = columns || Object.keys(data[0]).map((key) => ({ key, label: key }));
 
-  // Create CSV header
-  const header = cols.map((col) => col.label).join(",");
+  const header = cols.map((col) => quoteCSVField(col.label)).join(",");
 
-  // Create CSV rows
   const rows = data.map((row) =>
-    cols
-      .map((col) => {
-        const value = row[col.key];
-        // Escape quotes and wrap in quotes if contains comma
-        const stringValue = String(value ?? "");
-        return stringValue.includes(",") || stringValue.includes('"')
-          ? `"${stringValue.replace(/"/g, '""')}"`
-          : stringValue;
-      })
-      .join(",")
+    cols.map((col) => quoteCSVField(row[col.key])).join(",")
   );
 
-  // Combine header and rows
-  const csv = [header, ...rows].join("\n");
+  // UTF-8 BOM so Excel opens it correctly with special characters
+  const csv = "\uFEFF" + [header, ...rows].join("\r\n");
 
-  // Create blob and download
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
-
   link.setAttribute("href", url);
   link.setAttribute("download", `${filename}.csv`);
   link.style.visibility = "hidden";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function downloadCSVTemplate(
+  filename: string,
+  columns: { label: string; example?: string }[]
+) {
+  const header = columns.map((c) => quoteCSVField(c.label)).join(",");
+  const example = columns.map((c) => quoteCSVField(c.example ?? "")).join(",");
+
+  const csv = "\uFEFF" + [header, example].join("\r\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", `${filename}_template.csv`);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function formatCurrency(value: number | string): string {

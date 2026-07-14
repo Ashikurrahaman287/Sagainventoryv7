@@ -5,7 +5,7 @@ import { ProductFormDialog } from "@/components/product-form-dialog";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { SearchBar } from "@/components/search-bar";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, Upload } from "lucide-react";
+import { Plus, Download, Upload, FileDown } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { exportToCSV } from "@/lib/export";
+import { exportToCSV, downloadCSVTemplate } from "@/lib/export";
 import { parseCSV, validateRequired, validateNumber, validateInteger } from "@/lib/import";
 import type { InsertProduct, Supplier, Product } from "@shared/schema";
 
@@ -28,6 +28,7 @@ export default function Products() {
   const [deletingProduct, setDeletingProduct] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -78,7 +79,7 @@ export default function Products() {
   });
 
   const adjustStockMutation = useMutation({
-    mutationFn: ({ id, quantity, type }: { id: string; quantity: number; type: 'add' | 'set' }) =>
+    mutationFn: ({ id, quantity, type }: { id: string; quantity: number; type: "add" | "set" }) =>
       apiRequest("POST", `/api/products/${id}/adjust-stock`, { quantity, type }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
@@ -110,11 +111,16 @@ export default function Products() {
     if (deletingProduct) deleteMutation.mutate(deletingProduct);
   };
 
-  const handleAdjustStock = (id: string, quantity: number, type: 'add' | 'set') => {
+  const handleAdjustStock = (id: string, quantity: number, type: "add" | "set") => {
     adjustStockMutation.mutate({ id, quantity, type });
   };
 
+  // ── Export ──────────────────────────────────────────────────────────────
   const handleExport = () => {
+    if (products.length === 0) {
+      toast({ title: "No products to export", variant: "destructive" });
+      return;
+    }
     exportToCSV(
       products.map((p) => ({
         stockCode: p.stockCode,
@@ -123,101 +129,166 @@ export default function Products() {
         buyingPrice: p.buyingPrice,
         sellingPrice: p.sellingPrice,
         quantity: p.quantity,
-        supplierName: p.supplierName || "",
+        supplier: p.supplierName || "",
       })),
       "products",
       [
-        { key: "stockCode", label: "Stock Code" },
-        { key: "name", label: "Product Name" },
-        { key: "category", label: "Category" },
-        { key: "buyingPrice", label: "Buying Price" },
+        { key: "stockCode",    label: "Stock Code" },
+        { key: "name",         label: "Product Name" },
+        { key: "category",     label: "Category" },
+        { key: "buyingPrice",  label: "Buying Price" },
         { key: "sellingPrice", label: "Selling Price" },
-        { key: "quantity", label: "Quantity" },
-        { key: "supplierName", label: "Supplier" },
+        { key: "quantity",     label: "Quantity" },
+        { key: "supplier",     label: "Supplier" },
       ]
     );
-    toast({ title: "Products exported successfully" });
+    toast({ title: `${products.length} products exported successfully` });
   };
 
+  // ── Template download ───────────────────────────────────────────────────
+  const handleDownloadTemplate = () => {
+    downloadCSVTemplate("products", [
+      { label: "Stock Code",    example: "P001" },
+      { label: "Product Name",  example: "Example Widget" },
+      { label: "Category",      example: "Electronics" },
+      { label: "Buying Price",  example: "10.00" },
+      { label: "Selling Price", example: "25.00" },
+      { label: "Quantity",      example: "50" },
+      { label: "Supplier",      example: "Acme Corp" },
+    ]);
+    toast({ title: "Template downloaded" });
+  };
+
+  // ── Import ──────────────────────────────────────────────────────────────
   const handleImportClick = () => fileInputRef.current?.click();
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      toast({ title: "Please select a CSV file", variant: "destructive" });
+      return;
+    }
+
     setIsImporting(true);
+    setImportProgress(null);
+
     try {
+      // Build supplier name → id lookup (case-insensitive)
+      const supplierMap = new Map<string, string>(
+        suppliers.map((s) => [s.name.toLowerCase().trim(), s.id])
+      );
+
       const result = await parseCSV<InsertProduct>(
         file,
         [
-          { csvHeader: "Stock Code", field: "stockCode" },
-          { csvHeader: "Product Name", field: "name" },
-          { csvHeader: "Category", field: "category" },
-          { csvHeader: "Buying Price", field: "buyingPrice" },
+          { csvHeader: "Stock Code",    field: "stockCode" },
+          { csvHeader: "Product Name",  field: "name" },
+          { csvHeader: "Category",      field: "category" },
+          { csvHeader: "Buying Price",  field: "buyingPrice" },
           { csvHeader: "Selling Price", field: "sellingPrice" },
-          { csvHeader: "Quantity", field: "quantity" },
-          { csvHeader: "Supplier ID", field: "supplierId" },
+          { csvHeader: "Quantity",      field: "quantity" },
+          { csvHeader: "Supplier",      field: "supplierId", optional: true },
         ],
-        (row) => ({
-          stockCode: validateRequired(row["Stock Code"], "Stock Code"),
-          name: validateRequired(row["Product Name"], "Product Name"),
-          category: validateRequired(row["Category"], "Category"),
-          buyingPrice: validateNumber(row["Buying Price"], "Buying Price"),
-          sellingPrice: validateNumber(row["Selling Price"], "Selling Price"),
-          quantity: validateInteger(row["Quantity"], "Quantity"),
-          supplierId: row["Supplier ID"]?.trim() || null,
-        })
+        (row) => {
+          const supplierName = (row["Supplier"] || "").trim();
+          const supplierId = supplierName
+            ? (supplierMap.get(supplierName.toLowerCase()) ?? null)
+            : null;
+
+          return {
+            stockCode:    validateRequired(row["Stock Code"],    "Stock Code"),
+            name:         validateRequired(row["Product Name"],  "Product Name"),
+            category:     validateRequired(row["Category"],      "Category"),
+            buyingPrice:  validateNumber(row["Buying Price"],    "Buying Price"),
+            sellingPrice: validateNumber(row["Selling Price"],   "Selling Price"),
+            quantity:     validateInteger(row["Quantity"],       "Quantity"),
+            supplierId,
+          };
+        }
       );
 
-      if (result.errors.length > 0) {
+      // Show warnings (missing optional columns)
+      if (result.warnings.length > 0) {
         toast({
-          title: "Import errors",
-          description: result.errors.slice(0, 3).join(", "),
+          title: "Import note",
+          description: result.warnings.join(". "),
+        });
+      }
+
+      // Hard errors (missing required columns or all rows failed)
+      if (result.errors.length > 0 && result.data.length === 0) {
+        toast({
+          title: "Import failed",
+          description: result.errors.slice(0, 5).join(" | "),
           variant: "destructive",
         });
         return;
       }
 
+      // Row-level parse errors — continue importing valid rows
+      if (result.errors.length > 0) {
+        toast({
+          title: `${result.errors.length} row(s) skipped`,
+          description: result.errors.slice(0, 3).join(", ") +
+            (result.errors.length > 3 ? ` (+${result.errors.length - 3} more)` : ""),
+          variant: "destructive",
+        });
+      }
+
+      if (result.data.length === 0) {
+        toast({ title: "No valid rows to import", variant: "destructive" });
+        return;
+      }
+
+      // Batch-import valid rows
       let successCount = 0;
-      const failedRows: string[] = [];
+      const rowErrors: string[] = [];
+      setImportProgress({ done: 0, total: result.data.length });
+
       for (let i = 0; i < result.data.length; i++) {
         const product = result.data[i];
         try {
           await apiRequest("POST", "/api/products", product);
           successCount++;
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : "Unknown error";
-          failedRows.push(`Row ${i + 2}: ${product.stockCode || "Unknown"} - ${errorMsg}`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Unknown error";
+          rowErrors.push(`${product.stockCode || `Row ${i + 2}`}: ${msg}`);
         }
+        setImportProgress({ done: i + 1, total: result.data.length });
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
 
-      if (failedRows.length > 0) {
+      if (rowErrors.length === 0) {
         toast({
-          title: "Import completed with errors",
-          description: `${successCount} imported, ${failedRows.length} failed: ${failedRows.slice(0, 2).join(", ")}${failedRows.length > 2 ? "..." : ""}`,
-          variant: "destructive",
+          title: "Import successful",
+          description: `${successCount} product${successCount !== 1 ? "s" : ""} imported`,
         });
       } else {
         toast({
-          title: "Import successful",
-          description: `${successCount} products imported successfully`,
+          title: `Imported ${successCount}, failed ${rowErrors.length}`,
+          description: rowErrors.slice(0, 3).join(", ") +
+            (rowErrors.length > 3 ? ` (+${rowErrors.length - 3} more)` : ""),
+          variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (err) {
       toast({
         title: "Import failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: err instanceof Error ? err.message : "Unknown error",
         variant: "destructive",
       });
     } finally {
       setIsImporting(false);
+      setImportProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
+  // ── Filter ──────────────────────────────────────────────────────────────
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -229,7 +300,11 @@ export default function Products() {
   const categories = ["all", ...Array.from(new Set(products.map((p) => p.category)))];
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-48 text-muted-foreground">Loading products...</div>;
+    return (
+      <div className="flex items-center justify-center h-48 text-muted-foreground">
+        Loading products...
+      </div>
+    );
   }
 
   return (
@@ -239,7 +314,7 @@ export default function Products() {
           <h1 className="text-3xl font-bold">Products</h1>
           <p className="text-muted-foreground">Manage your product inventory</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <input
             ref={fileInputRef}
             type="file"
@@ -250,12 +325,25 @@ export default function Products() {
           />
           <Button
             variant="outline"
+            onClick={handleDownloadTemplate}
+            data-testid="button-download-template"
+            title="Download a blank CSV template showing the correct column format"
+          >
+            <FileDown className="mr-2 h-4 w-4" />
+            Template
+          </Button>
+          <Button
+            variant="outline"
             onClick={handleImportClick}
             disabled={isImporting}
             data-testid="button-import-products"
           >
             <Upload className="mr-2 h-4 w-4" />
-            {isImporting ? "Importing..." : "Import CSV"}
+            {isImporting
+              ? importProgress
+                ? `Importing ${importProgress.done}/${importProgress.total}…`
+                : "Reading file…"
+              : "Import CSV"}
           </Button>
           <Button variant="outline" onClick={handleExport} data-testid="button-export-products">
             <Download className="mr-2 h-4 w-4" />

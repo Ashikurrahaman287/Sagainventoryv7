@@ -1,7 +1,10 @@
+import { useRef, useState } from "react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Printer, Download } from "lucide-react";
+import { Printer, Download, Loader2 } from "lucide-react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 export interface InvoiceData {
   invoiceNumber: string;
@@ -374,6 +377,8 @@ function buildPrintHTML(data: InvoiceData): string {
 export function Invoice({ data }: InvoiceProps) {
   const businessName = data.businessName || "Undergraduate Hub";
   const receiptFooter = data.receiptFooter || "Thank you for your business!";
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const discountAmount =
     data.discountType === "percentage"
@@ -392,15 +397,46 @@ export function Invoice({ data }: InvoiceProps) {
     };
   };
 
-  const handleDownload = () => {
-    const html = buildPrintHTML(data);
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `invoice-${data.invoiceNumber}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleDownload = async () => {
+    if (!previewRef.current || isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const canvas = await html2canvas(previewRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const ratio = canvas.width / canvas.height;
+      const imgW = pageW;
+      const imgH = imgW / ratio;
+
+      let yOffset = 0;
+      let remaining = imgH;
+
+      while (remaining > 0) {
+        const sliceH = Math.min(pageH, remaining);
+        // For subsequent pages we add a new page and re-draw the image shifted up
+        if (yOffset > 0) pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, -yOffset, imgW, imgH);
+        yOffset += pageH;
+        remaining -= sliceH;
+      }
+
+      pdf.save(`invoice-${data.invoiceNumber}.pdf`);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -411,14 +447,28 @@ export function Invoice({ data }: InvoiceProps) {
           <Printer className="mr-2 h-4 w-4" />
           Print Invoice
         </Button>
-        <Button variant="outline" onClick={handleDownload} data-testid="button-download-invoice">
-          <Download className="mr-2 h-4 w-4" />
-          Download
+        <Button
+          variant="outline"
+          onClick={handleDownload}
+          disabled={isDownloading}
+          data-testid="button-download-invoice"
+        >
+          {isDownloading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating PDF…
+            </>
+          ) : (
+            <>
+              <Download className="mr-2 h-4 w-4" />
+              Download PDF
+            </>
+          )}
         </Button>
       </div>
 
       {/* On-screen preview */}
-      <div className="bg-white text-gray-900 rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div ref={previewRef} className="bg-white text-gray-900 rounded-xl border border-gray-200 shadow-sm overflow-hidden">
 
         {/* Brand bar */}
         <div className="bg-[#1e3a8a] px-8 py-4 flex items-center gap-4">

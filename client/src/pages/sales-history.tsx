@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -20,7 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye, Receipt } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Eye, Receipt, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import type { Sale, SaleItem } from "@shared/schema";
 
@@ -44,12 +47,14 @@ const paymentMethodColors: Record<string, "default" | "success" | "warning" | "s
 };
 
 export default function SalesHistory() {
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
-  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [showInvoice, setShowInvoice] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saleDetail, setSaleDetail] = useState<SaleDetail | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [showClearAll, setShowClearAll] = useState(false);
 
   const { data: sales = [], isLoading } = useQuery<SaleWithDetails[]>({
     queryKey: ["/api/sales"],
@@ -57,6 +62,43 @@ export default function SalesHistory() {
 
   const { data: settings } = useQuery<Record<string, string>>({
     queryKey: ["/api/settings"],
+  });
+
+  const invalidateSales = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/dashboard/chart"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/reports/sales"] });
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/sales/${id}`),
+    onSuccess: () => {
+      toast({ title: "Sale deleted", description: "The transaction has been removed." });
+      invalidateSales();
+      setDeleteTargetId(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+      setDeleteTargetId(null);
+    },
+  });
+
+  const clearAllMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", "/api/sales/all"),
+    onSuccess: async (res) => {
+      const data = await res.json();
+      toast({
+        title: "All sales cleared",
+        description: `${data.deleted} transaction${data.deleted !== 1 ? "s" : ""} removed.`,
+      });
+      invalidateSales();
+      setShowClearAll(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to clear", description: err.message, variant: "destructive" });
+      setShowClearAll(false);
+    },
   });
 
   const filteredSales = sales.filter((sale) => {
@@ -69,22 +111,22 @@ export default function SalesHistory() {
   });
 
   const handleViewSale = async (id: string) => {
-    setSelectedSaleId(id);
     setLoadingDetail(true);
     setShowInvoice(true);
+    setSaleDetail(null);
     try {
       const res = await apiRequest("GET", `/api/sales/${id}`);
       const data = await res.json();
       setSaleDetail(data);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      toast({ title: "Failed to load sale", description: e.message, variant: "destructive" });
+      setShowInvoice(false);
     } finally {
       setLoadingDetail(false);
     }
   };
 
   const totalRevenue = filteredSales.reduce((sum, s) => sum + parseFloat(s.total), 0);
-  const totalTransactions = filteredSales.length;
 
   if (isLoading) {
     return (
@@ -104,9 +146,23 @@ export default function SalesHistory() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Sales History</h1>
-        <p className="text-muted-foreground">Browse all past transactions</p>
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Sales History</h1>
+          <p className="text-muted-foreground">Browse and manage all past transactions</p>
+        </div>
+        {sales.length > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setShowClearAll(true)}
+            data-testid="button-clear-all-sales"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear All Sales
+          </Button>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -115,7 +171,7 @@ export default function SalesHistory() {
           <CardContent className="pt-6">
             <div className="text-sm text-muted-foreground">Total Transactions</div>
             <div className="text-3xl font-bold font-mono mt-1" data-testid="text-total-transactions">
-              {totalTransactions}
+              {filteredSales.length}
             </div>
           </CardContent>
         </Card>
@@ -206,6 +262,15 @@ export default function SalesHistory() {
                       <Eye className="h-4 w-4 mr-1" />
                       View
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteTargetId(sale.id)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      data-testid={`button-delete-sale-${sale.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -252,6 +317,70 @@ export default function SalesHistory() {
               }}
             />
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete single sale confirmation */}
+      <Dialog open={!!deleteTargetId} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Delete Sale?
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently remove the transaction record. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteTargetId(null)} disabled={deleteMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteTargetId && deleteMutation.mutate(deleteTargetId)}
+              disabled={deleteMutation.isPending}
+              data-testid="button-confirm-delete-sale"
+            >
+              {deleteMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting…</>
+              ) : (
+                "Delete Sale"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear ALL confirmation */}
+      <Dialog open={showClearAll} onOpenChange={(open) => { if (!open) setShowClearAll(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Clear All Sales?
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete all <strong>{sales.length}</strong> transaction records. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowClearAll(false)} disabled={clearAllMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => clearAllMutation.mutate()}
+              disabled={clearAllMutation.isPending}
+              data-testid="button-confirm-clear-all"
+            >
+              {clearAllMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Clearing…</>
+              ) : (
+                `Delete All ${sales.length} Sales`
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

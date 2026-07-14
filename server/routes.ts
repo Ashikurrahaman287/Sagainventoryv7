@@ -386,6 +386,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/sales/all", async (_req, res) => {
+    try {
+      const count = await storage.clearAllSales();
+      res.json({ deleted: count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/sales/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteSale(req.params.id);
+      if (!success) return res.status(404).json({ error: "Sale not found" });
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ── Dashboard ─────────────────────────────────────────────────────────────
   app.get("/api/dashboard/stats", async (_req, res) => {
     try {

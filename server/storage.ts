@@ -53,6 +53,8 @@ export interface IStorage {
   getSale(id: string): Promise<Sale | undefined>;
   getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[]; customerName: string; sellerName: string } | undefined>;
   createSale(sale: InsertSale): Promise<{ sale: Sale; items: SaleItem[] }>;
+  deleteSale(id: string): Promise<boolean>;
+  clearAllSales(): Promise<number>;
 
   // Settings
   getSetting(key: string): Promise<string | undefined>;
@@ -327,6 +329,18 @@ export class DbStorage implements IStorage {
     }
 
     return { sale, items };
+  }
+
+  async deleteSale(id: string): Promise<boolean> {
+    await db.delete(saleItems).where(eq(saleItems.saleId, id));
+    const result = await db.delete(sales).where(eq(sales.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async clearAllSales(): Promise<number> {
+    await db.delete(saleItems);
+    const result = await db.delete(sales).returning();
+    return result.length;
   }
 
   // Settings

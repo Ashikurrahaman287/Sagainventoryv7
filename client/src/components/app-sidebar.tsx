@@ -8,6 +8,8 @@ import {
   FileText,
   Settings,
   History,
+  Receipt,
+  ClipboardList,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -37,6 +39,8 @@ const managementItems = [
 
 const reportsItems = [
   { title: "Reports", url: "/reports", icon: FileText, testId: "link-reports" },
+  { title: "Operational Costs", url: "/operational-costs", icon: Receipt, testId: "link-operational-costs" },
+  { title: "Audit", url: "/audit", icon: ClipboardList, testId: "link-audit" },
 ];
 
 const settingsItems = [

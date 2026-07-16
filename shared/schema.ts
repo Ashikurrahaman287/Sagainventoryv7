@@ -70,6 +70,16 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const operationalCosts = pgTable("operational_costs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  date: text("date").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertSupplierSchema = createInsertSchema(suppliers).omit({
   id: true,
@@ -117,6 +127,14 @@ export const insertSaleSchema = createInsertSchema(sales).omit({
   items: z.array(insertSaleItemSchema),
 });
 
+export const insertOperationalCostSchema = createInsertSchema(operationalCosts).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  amount: z.string(),
+  description: z.string().nullable().optional(),
+});
+
 // Select types
 export type Supplier = typeof suppliers.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
@@ -125,6 +143,7 @@ export type Product = typeof products.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type SaleItem = typeof saleItems.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
+export type OperationalCost = typeof operationalCosts.$inferSelect;
 
 // Insert types
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
@@ -133,3 +152,4 @@ export type InsertSeller = z.infer<typeof insertSellerSchema>;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type InsertSale = z.infer<typeof insertSaleSchema>;
 export type InsertSaleItem = z.infer<typeof insertSaleItemSchema>;
+export type InsertOperationalCost = z.infer<typeof insertOperationalCostSchema>;

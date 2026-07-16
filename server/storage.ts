@@ -12,9 +12,11 @@ import type {
   InsertSeller,
   InsertProduct,
   InsertSale,
+  OperationalCost,
+  InsertOperationalCost,
 } from "@shared/schema";
 
-const { suppliers, customers, sellers, products, sales, saleItems, settings } = schema;
+const { suppliers, customers, sellers, products, sales, saleItems, settings, operationalCosts } = schema;
 
 export interface IStorage {
   // Suppliers
@@ -61,6 +63,14 @@ export interface IStorage {
   getSettings(): Promise<Record<string, string>>;
   setSetting(key: string, value: string): Promise<void>;
   setSettings(data: Record<string, string>): Promise<void>;
+
+  // Operational Costs
+  getOperationalCosts(): Promise<OperationalCost[]>;
+  getOperationalCost(id: string): Promise<OperationalCost | undefined>;
+  createOperationalCost(data: InsertOperationalCost): Promise<OperationalCost>;
+  updateOperationalCost(id: string, data: Partial<InsertOperationalCost>): Promise<OperationalCost | undefined>;
+  deleteOperationalCost(id: string): Promise<boolean>;
+  getOperationalCostMonthly(months: number): Promise<Array<{ month: string; total: number }>>;
 
   // Analytics
   getDashboardStats(): Promise<{
@@ -566,6 +576,51 @@ export class DbStorage implements IStorage {
       purchases: Number(row.purchases),
       spent: Number(row.spent),
     }));
+  }
+
+  // Operational Costs
+  async getOperationalCosts(): Promise<OperationalCost[]> {
+    return db.select().from(operationalCosts).orderBy(desc(operationalCosts.date));
+  }
+
+  async getOperationalCost(id: string): Promise<OperationalCost | undefined> {
+    const result = await db.select().from(operationalCosts).where(eq(operationalCosts.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createOperationalCost(data: InsertOperationalCost): Promise<OperationalCost> {
+    const result = await db.insert(operationalCosts).values(data).returning();
+    return result[0];
+  }
+
+  async updateOperationalCost(id: string, data: Partial<InsertOperationalCost>): Promise<OperationalCost | undefined> {
+    const result = await db.update(operationalCosts).set(data).where(eq(operationalCosts.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteOperationalCost(id: string): Promise<boolean> {
+    const result = await db.delete(operationalCosts).where(eq(operationalCosts.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getOperationalCostMonthly(months: number = 6): Promise<Array<{ month: string; total: number }>> {
+    const results = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const prefix = `${year}-${month}`;
+      const result = await db.select({
+        total: sql<number>`COALESCE(SUM(CAST(${operationalCosts.amount} AS NUMERIC)), 0)`,
+      }).from(operationalCosts).where(sql`${operationalCosts.date} LIKE ${prefix + '%'}`);
+      results.push({
+        month: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+        total: Number(result[0]?.total || 0),
+      });
+    }
+    return results;
   }
 
   async getDailyChartData(days: number = 7): Promise<Array<{ date: string; sales: number; profit: number }>> {

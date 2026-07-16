@@ -19,6 +19,8 @@ import Suppliers from "@/pages/suppliers";
 import Sellers from "@/pages/sellers";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
+import OperationalCosts from "@/pages/operational-costs";
+import Audit from "@/pages/audit";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -32,6 +34,8 @@ function Router() {
       <Route path="/suppliers" component={Suppliers} />
       <Route path="/sellers" component={Sellers} />
       <Route path="/reports" component={Reports} />
+      <Route path="/operational-costs" component={OperationalCosts} />
+      <Route path="/audit" component={Audit} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

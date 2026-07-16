@@ -7,6 +7,7 @@ import {
   insertSellerSchema,
   insertProductSchema,
   insertSaleSchema,
+  insertOperationalCostSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import {
@@ -447,6 +448,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
     const customers = await (storage as any).getTopCustomers(limit);
     res.json(customers);
+  });
+
+  // ── Operational Costs ─────────────────────────────────────────────────────
+  app.get("/api/operational-costs", async (_req, res) => {
+    try {
+      const costs = await storage.getOperationalCosts();
+      res.json(costs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/operational-costs/monthly", async (req, res) => {
+    try {
+      const months = req.query.months ? parseInt(req.query.months as string) : 6;
+      const data = await storage.getOperationalCostMonthly(months);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/operational-costs/:id", async (req, res) => {
+    try {
+      const cost = await storage.getOperationalCost(req.params.id);
+      if (!cost) return res.status(404).json({ error: "Cost not found" });
+      res.json(cost);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/operational-costs", async (req, res) => {
+    try {
+      const data = insertOperationalCostSchema.parse(req.body);
+      const cost = await storage.createOperationalCost(data);
+      res.status(201).json(cost);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/operational-costs/:id", async (req, res) => {
+    try {
+      const data = insertOperationalCostSchema.partial().parse(req.body);
+      const cost = await storage.updateOperationalCost(req.params.id, data);
+      if (!cost) return res.status(404).json({ error: "Cost not found" });
+      res.json(cost);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/operational-costs/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteOperationalCost(req.params.id);
+      if (!success) return res.status(404).json({ error: "Cost not found" });
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ── Audit ─────────────────────────────────────────────────────────────────
+  app.get("/api/audit/summary", async (_req, res) => {
+    try {
+      const [allSalesReport, yearReport, products, customers, suppliers, sellers, opCosts] = await Promise.all([
+        (storage as any).getSalesReportByPeriod("all"),
+        (storage as any).getSalesReportByPeriod("year"),
+        storage.getProducts(),
+        storage.getCustomers(),
+        storage.getSuppliers(),
+        storage.getSellers(),
+        storage.getOperationalCosts(),
+      ]);
+
+      const totalOpCosts = opCosts.reduce((sum: number, c: any) => sum + Number(c.amount), 0);
+      const inventoryValue = products.reduce((sum: any, p: any) => sum + Number(p.sellingPrice) * p.quantity, 0);
+      const inventoryCostValue = products.reduce((sum: any, p: any) => sum + Number(p.buyingPrice) * p.quantity, 0);
+
+      res.json({
+        totalRevenue: allSalesReport.revenue,
+        totalProfit: allSalesReport.profit,
+        totalTransactions: allSalesReport.transactions,
+        yearRevenue: yearReport.revenue,
+        yearProfit: yearReport.profit,
+        yearTransactions: yearReport.transactions,
+        totalProducts: products.length,
+        inventoryValue,
+        inventoryCostValue,
+        totalCustomers: customers.length,
+        totalSuppliers: suppliers.length,
+        totalSellers: sellers.length,
+        totalOpCosts,
+        netProfit: allSalesReport.profit - totalOpCosts,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   const httpServer = createServer(app);

@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { sendOrderConfirmationEmail, sendTestEmail } from "./email";
 import {
   insertSupplierSchema,
   insertCustomerSchema,
@@ -380,6 +381,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = insertSaleSchema.parse(req.body);
       const result = await storage.createSale(data);
       res.status(201).json(result);
+
+      // Send order confirmation email (non-blocking)
+      try {
+        const customer = await storage.getCustomer(result.sale.customerId);
+        const seller = await storage.getSeller(result.sale.sellerId);
+        if (customer?.email) {
+          sendOrderConfirmationEmail({
+            receiptNumber: result.sale.receiptNumber,
+            customerName: customer.name,
+            customerEmail: customer.email,
+            sellerName: seller?.name || "—",
+            date: new Date(result.sale.createdAt).toLocaleDateString("en-BD", {
+              day: "2-digit", month: "long", year: "numeric",
+            }),
+            items: result.items.map((item) => ({
+              productName: item.productName,
+              stockCode: item.stockCode,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              subtotal: item.subtotal,
+            })),
+            subtotal: result.sale.subtotal,
+            discount: result.sale.discount,
+            discountType: result.sale.discountType,
+            total: result.sale.total,
+            paymentMethod: result.sale.paymentMethod,
+            notes: result.sale.notes,
+          }).catch(() => {});
+        }
+      } catch (_) {}
     } catch (error: any) {
       if (error.code === "23503")
         return res.status(400).json({ error: "Invalid customer, seller, or product" });
@@ -448,6 +479,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
     const customers = await (storage as any).getTopCustomers(limit);
     res.json(customers);
+  });
+
+  // ── Email ─────────────────────────────────────────────────────────────────
+  app.post("/api/email/test", async (req, res) => {
+    try {
+      const { to } = req.body;
+      if (!to) return res.status(400).json({ error: "Recipient email required" });
+      const result = await sendTestEmail(to);
+      if (!result.success) return res.status(400).json({ error: result.error });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // ── Operational Costs ─────────────────────────────────────────────────────

@@ -146,6 +146,10 @@ export default function EmailSettings() {
 
   const isConfigured = !!(settings.emailSmtpHost && settings.emailSmtpUser && settings.emailSmtpPass);
   const isEnabled = settings.emailEnabled === "true";
+  const hasInvalidSender = !!(settings.emailSmtpUser && (
+    settings.emailSmtpUser.includes("smtp-brevo.com") ||
+    settings.emailSmtpUser.includes("sendinblue.com")
+  ));
 
   const activeProvider = PROVIDERS.find((p) =>
     settings.emailSmtpHost?.includes(p.host.split(".").slice(-2).join("."))
@@ -186,6 +190,29 @@ export default function EmailSettings() {
           )}
         </div>
       </div>
+
+      {/* Invalid sender warning */}
+      {hasInvalidSender && (
+        <Card className="border-red-500/40 bg-red-500/10">
+          <CardContent className="pt-5">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="font-semibold text-red-400 text-sm mb-1">Action Required — Sender Email is Wrong</div>
+                <div className="text-sm text-muted-foreground">
+                  The current sender email <span className="font-mono text-red-300">{settings.emailSmtpUser}</span> is a Brevo SMTP login, not a real email address.
+                  Brevo accepted the API call but never delivered the email because it can't send <em>from</em> that address.
+                </div>
+                <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                  <div className="font-medium text-foreground">Fix these two things:</div>
+                  <div className="flex gap-2"><span className="text-red-400 font-bold">1.</span> In <strong>Email Settings below</strong>, change the sender email to your real email (e.g. <span className="font-mono">amenasheuli1985@gmail.com</span> or your business email)</div>
+                  <div className="flex gap-2"><span className="text-red-400 font-bold">2.</span> In <strong>Brevo</strong> → Senders &amp; IP → Senders → click "Add a sender" → enter that same email → verify it</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* How it works */}
       <Card className="border-blue-500/20 bg-blue-500/5">

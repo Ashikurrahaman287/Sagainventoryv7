@@ -147,6 +147,15 @@ async function sendViaBrevoApi(opts: {
   subject: string;
   html: string;
 }): Promise<void> {
+  // Validate sender email looks real
+  if (opts.fromEmail.includes("smtp-brevo.com") || opts.fromEmail.includes("sendinblue.com")) {
+    throw new Error(
+      "Invalid sender email — the 'From' email cannot be a Brevo SMTP login (like b24xxx@smtp-brevo.com). " +
+      "Please update Email Settings: enter your real email address (e.g. yourname@gmail.com) in the sender field, " +
+      "then verify it in Brevo → Senders & IP → Senders."
+    );
+  }
+
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
@@ -161,10 +170,16 @@ async function sendViaBrevoApi(opts: {
     }),
   });
 
+  const body = await res.text();
+
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Brevo API error ${res.status}: ${body}`);
+    let msg = `Brevo API error ${res.status}: ${body}`;
+    if (res.status === 401) msg = "Invalid Brevo API key. Go to Brevo → SMTP & API → API Keys tab and generate a new key (starts with xkeysib-).";
+    if (res.status === 400 && body.includes("sender")) msg = "Sender email not verified in Brevo. Go to Brevo → Senders & IP → Senders and add your email address.";
+    throw new Error(msg);
   }
+
+  console.log(`[email] Brevo API sent to ${opts.to} — response: ${body}`);
 }
 
 async function sendViaSmtp(opts: {

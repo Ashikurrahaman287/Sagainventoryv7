@@ -10,6 +10,7 @@ import {
   History,
   Receipt,
   ClipboardList,
+  Mail,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -44,6 +45,7 @@ const reportsItems = [
 ];
 
 const settingsItems = [
+  { title: "Email", url: "/email", icon: Mail, testId: "link-email" },
   { title: "Settings", url: "/settings", icon: Settings, testId: "link-settings" },
 ];
 

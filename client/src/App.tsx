@@ -21,6 +21,7 @@ import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 import OperationalCosts from "@/pages/operational-costs";
 import Audit from "@/pages/audit";
+import EmailSettings from "@/pages/email-settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/reports" component={Reports} />
       <Route path="/operational-costs" component={OperationalCosts} />
       <Route path="/audit" component={Audit} />
+      <Route path="/email" component={EmailSettings} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

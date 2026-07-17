@@ -482,6 +482,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Email ─────────────────────────────────────────────────────────────────
+  app.get("/api/email/config", async (_req, res) => {
+    try {
+      const s = await storage.getSettings();
+      res.json({
+        host: s.emailSmtpHost || "(not set)",
+        port: s.emailSmtpPort || "(not set)",
+        user: s.emailSmtpUser || "(not set)",
+        hasPassword: !!(s.emailSmtpPass),
+        passwordLength: s.emailSmtpPass?.length ?? 0,
+        enabled: s.emailEnabled,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/email/test", async (req, res) => {
     try {
       const { to } = req.body;

@@ -7,6 +7,8 @@ import { PaymentMethodSelector, PaymentMethod } from "@/components/payment-metho
 import { Invoice } from "@/components/invoice";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -20,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -34,6 +36,8 @@ export default function Sales() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [customer, setCustomer] = useState("");
   const [seller, setSeller] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [amountPaid, setAmountPaid] = useState("");
   const [showInvoice, setShowInvoice] = useState(false);
   const [completedSale, setCompletedSale] = useState<{
     sale: Sale;
@@ -80,6 +84,8 @@ export default function Sales() {
       setDiscount(0);
       setCustomer("");
       setSeller("");
+      setDeliveryAddress("");
+      setAmountPaid("");
 
       toast({ title: "Sale completed successfully!" });
     },
@@ -147,6 +153,10 @@ export default function Sales() {
 
   const handleCompleteSale = async () => {
     if (!customer || !seller || cartItems.length === 0) return;
+    if (!deliveryAddress.trim()) {
+      toast({ title: "Delivery address required", description: "Please enter a delivery address.", variant: "destructive" });
+      return;
+    }
 
     const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const discountAmount =
@@ -161,6 +171,8 @@ export default function Sales() {
       discountType,
       total: total.toFixed(2),
       paymentMethod,
+      deliveryAddress: deliveryAddress.trim(),
+      amountPaid: amountPaid.trim() ? parseFloat(amountPaid).toFixed(2) : total.toFixed(2),
       items: cartItems.map((item) => {
         const product = products.find((p) => p.id === item.id);
         return {
@@ -179,7 +191,7 @@ export default function Sales() {
   };
 
   const canCompleteSale =
-    cartItems.length > 0 && customer && seller && !createSaleMutation.isPending;
+    cartItems.length > 0 && customer && seller && deliveryAddress.trim() && !createSaleMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -293,6 +305,34 @@ export default function Sales() {
                 onSelect={setPaymentMethod}
               />
 
+              <div>
+                <Label className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" /> Delivery Address <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  placeholder="Enter the delivery address..."
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  rows={2}
+                  className="mt-1 resize-none"
+                  data-testid="input-delivery-address"
+                />
+              </div>
+
+              <div>
+                <Label>Amount Paid (leave empty if fully paid)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g. 500.00 for partial payment"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                  className="mt-1"
+                  data-testid="input-amount-paid"
+                />
+              </div>
+
               <Button
                 className="w-full"
                 size="lg"
@@ -325,6 +365,7 @@ export default function Sales() {
                 sellerName: completedSale.sellerData.name,
                 businessName: settings?.businessName,
                 receiptFooter: settings?.receiptFooter,
+                deliveryAddress: (completedSale.sale as any).deliveryAddress,
                 items: completedSale.items.map((item) => ({
                   stockCode: item.stockCode,
                   name: item.productName,

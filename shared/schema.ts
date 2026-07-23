@@ -49,6 +49,9 @@ export const sales = pgTable("sales", {
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   paymentMethod: text("payment_method").notNull(),
   notes: text("notes"),
+  deliveryAddress: text("delivery_address"),
+  amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }),
+  deliveredAt: timestamp("delivered_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -119,11 +122,14 @@ export const insertSaleSchema = createInsertSchema(sales).omit({
   id: true,
   createdAt: true,
   receiptNumber: true,
+  deliveredAt: true,
 }).extend({
   subtotal: z.string(),
   discount: z.string(),
   total: z.string(),
   notes: z.string().optional(),
+  deliveryAddress: z.string().min(1, "Delivery address is required"),
+  amountPaid: z.string().optional(),
   items: z.array(insertSaleItemSchema),
 });
 

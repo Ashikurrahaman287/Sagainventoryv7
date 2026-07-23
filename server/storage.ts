@@ -53,8 +53,9 @@ export interface IStorage {
   // Sales
   getSales(): Promise<Array<Sale & { customerName: string; sellerName: string }>>;
   getSale(id: string): Promise<Sale | undefined>;
-  getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[]; customerName: string; sellerName: string } | undefined>;
+  getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[]; customerName: string; sellerName: string; customerEmail: string; customerPhone: string } | undefined>;
   createSale(sale: InsertSale): Promise<{ sale: Sale; items: SaleItem[] }>;
+  markSaleDelivered(id: string, paymentReceived: boolean): Promise<Sale | undefined>;
   deleteSale(id: string): Promise<boolean>;
   clearAllSales(): Promise<number>;
 
@@ -248,6 +249,9 @@ export class DbStorage implements IStorage {
       total: sales.total,
       paymentMethod: sales.paymentMethod,
       notes: sales.notes,
+      deliveryAddress: sales.deliveryAddress,
+      amountPaid: sales.amountPaid,
+      deliveredAt: sales.deliveredAt,
       createdAt: sales.createdAt,
       customerName: customers.name,
       sellerName: sellers.name,
@@ -263,7 +267,7 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[]; customerName: string; sellerName: string } | undefined> {
+  async getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[]; customerName: string; sellerName: string; customerEmail: string; customerPhone: string } | undefined> {
     const saleResult = await db
       .select({
         id: sales.id,
@@ -276,6 +280,9 @@ export class DbStorage implements IStorage {
         total: sales.total,
         paymentMethod: sales.paymentMethod,
         notes: sales.notes,
+        deliveryAddress: sales.deliveryAddress,
+        amountPaid: sales.amountPaid,
+        deliveredAt: sales.deliveredAt,
         createdAt: sales.createdAt,
         customerName: customers.name,
         customerEmail: customers.email,
@@ -291,8 +298,8 @@ export class DbStorage implements IStorage {
     if (!saleResult[0]) return undefined;
 
     const items = await db.select().from(saleItems).where(eq(saleItems.saleId, id));
-    const { customerName, sellerName, ...sale } = saleResult[0] as any;
-    return { sale, items, customerName, sellerName };
+    const { customerName, sellerName, customerEmail, customerPhone, ...sale } = saleResult[0] as any;
+    return { sale, items, customerName, sellerName, customerEmail, customerPhone };
   }
 
   async createSale(saleData: InsertSale): Promise<{ sale: Sale; items: SaleItem[] }> {
@@ -339,6 +346,18 @@ export class DbStorage implements IStorage {
     }
 
     return { sale, items };
+  }
+
+  async markSaleDelivered(id: string, paymentReceived: boolean): Promise<Sale | undefined> {
+    const updates: Partial<Sale> = { deliveredAt: new Date() } as any;
+    if (paymentReceived) {
+      const existing = await this.getSale(id);
+      if (existing) {
+        (updates as any).amountPaid = existing.total;
+      }
+    }
+    const result = await db.update(sales).set(updates as any).where(eq(sales.id, id)).returning();
+    return result[0];
   }
 
   async deleteSale(id: string): Promise<boolean> {
@@ -445,6 +464,9 @@ export class DbStorage implements IStorage {
       total: sales.total,
       paymentMethod: sales.paymentMethod,
       notes: sales.notes,
+      deliveryAddress: sales.deliveryAddress,
+      amountPaid: sales.amountPaid,
+      deliveredAt: sales.deliveredAt,
       createdAt: sales.createdAt,
       customerName: customers.name,
       sellerName: sellers.name,

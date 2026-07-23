@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { sendOrderConfirmationEmail, sendTestEmail } from "./email";
+import { sendOrderConfirmationEmail, sendDeliveryEmails, sendTestEmail } from "./email";
 import {
   insertSupplierSchema,
   insertCustomerSchema,
@@ -395,6 +395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             date: new Date(result.sale.createdAt).toLocaleDateString("en-BD", {
               day: "2-digit", month: "long", year: "numeric",
             }),
+            deliveryAddress: (result.sale as any).deliveryAddress,
             items: result.items.map((item) => ({
               productName: item.productName,
               stockCode: item.stockCode,
@@ -414,6 +415,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       if (error.code === "23503")
         return res.status(400).json({ error: "Invalid customer, seller, or product" });
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/sales/:id/deliver", async (req, res) => {
+    try {
+      const schema = z.object({ paymentReceived: z.boolean() });
+      const { paymentReceived } = schema.parse(req.body);
+
+      const updated = await storage.markSaleDelivered(req.params.id, paymentReceived);
+      if (!updated) return res.status(404).json({ error: "Sale not found" });
+
+      res.json(updated);
+
+      // Send delivery emails (non-blocking)
+      if (paymentReceived) {
+        try {
+          const saleData = await storage.getSaleWithItems(req.params.id);
+          if (saleData?.customerEmail) {
+            sendDeliveryEmails({
+              customerName: saleData.customerName,
+              customerEmail: saleData.customerEmail,
+              receiptNumber: saleData.sale.receiptNumber,
+              total: saleData.sale.total,
+            }).catch(() => {});
+          }
+        } catch (_) {}
+      }
+    } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });

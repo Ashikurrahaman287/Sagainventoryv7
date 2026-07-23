@@ -15,6 +15,7 @@ export interface InvoiceData {
   sellerName: string;
   businessName?: string;
   receiptFooter?: string;
+  deliveryAddress?: string | null;
   items: {
     stockCode: string;
     name: string;
@@ -318,6 +319,12 @@ function buildPrintHTML(data: InvoiceData): string {
       </div>
     </div>
 
+    ${data.deliveryAddress ? `
+    <div style="background:#eff6ff;border-left:4px solid #1e3a8a;padding:10px 16px;border-radius:6px;margin-bottom:24px;">
+      <div class="party-label" style="margin-bottom:4px;">Delivery Address</div>
+      <div style="font-size:13px;color:#1e40af;font-weight:500;">${data.deliveryAddress}</div>
+    </div>` : ""}
+
     <table>
       <thead>
         <tr>
@@ -504,7 +511,7 @@ export function Invoice({ data }: InvoiceProps) {
           <div className="border-t-2 border-[#1e3a8a] opacity-20 mb-6" />
 
           {/* Parties */}
-          <div className="grid grid-cols-2 gap-8 mb-8">
+          <div className="grid grid-cols-2 gap-8 mb-6">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-[#1e3a8a] mb-2">Bill To</p>
               <p className="font-semibold text-gray-900 text-base" data-testid="text-customer-name">
@@ -525,6 +532,14 @@ export function Invoice({ data }: InvoiceProps) {
               <p className="text-sm text-gray-500 mt-0.5">{businessName}</p>
             </div>
           </div>
+
+          {/* Delivery Address */}
+          {data.deliveryAddress && (
+            <div className="bg-blue-50 border-l-4 border-[#1e3a8a] px-4 py-3 rounded-r-md mb-6">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#1e3a8a] mb-1">Delivery Address</p>
+              <p className="text-sm font-medium text-blue-800">{data.deliveryAddress}</p>
+            </div>
+          )}
 
           <div className="border-t border-gray-200 mb-6" />
 

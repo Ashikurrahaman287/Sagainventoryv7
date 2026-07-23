@@ -45,6 +45,7 @@ export default function Delivery() {
       queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setConfirmSale(null);
+      setFilter("delivered");
       toast({
         title: "Delivery confirmed! ✅",
         description: "Emails have been sent to the customer.",

@@ -1,4 +1,4 @@
-import { eq, desc, sql, like, or, and, gte } from "drizzle-orm";
+import { eq, desc, sql, like, or, and, gte, SQL } from "drizzle-orm";
 import { db, schema } from "./db";
 import type {
   Supplier,
@@ -85,6 +85,11 @@ export interface IStorage {
   getCustomerStats(customerId: string): Promise<{ totalPurchases: number; totalSpent: number }>;
   getSellerStats(sellerId: string): Promise<{ totalSales: number; totalRevenue: number }>;
   getDailyChartData(days: number): Promise<Array<{ date: string; sales: number; profit: number }>>;
+
+  // Reports
+  getStockReportByCategory(): Promise<Array<{ category: string; products: number; value: number; costValue: number; totalQuantity: number; status: string }>>;
+  getSalesReportByPeriod(period: string): Promise<{ transactions: number; revenue: number; profit: number }>;
+  getTopCustomers(limit?: number): Promise<Array<{ name: string; purchases: number; spent: number }>>;
 }
 
 export class DbStorage implements IStorage {
@@ -305,7 +310,7 @@ export class DbStorage implements IStorage {
   async createSale(saleData: InsertSale): Promise<{ sale: Sale; items: SaleItem[] }> {
     const { items: saleItemsData, ...saleInfo } = saleData;
 
-    // Validate stock for all items first
+    // Validate stock for all items first (before opening the transaction)
     for (const item of saleItemsData) {
       const product = await this.getProduct(item.productId);
       if (!product) {
@@ -323,37 +328,37 @@ export class DbStorage implements IStorage {
     const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     const receiptNumber = `RCP-${year}-${timestamp}${random}`;
 
-    // Create sale
-    const saleResult = await db.insert(sales).values({
-      ...saleInfo,
-      receiptNumber,
-    }).returning();
-    const sale = saleResult[0];
-
-    // Create sale items and update product quantities
-    const items: SaleItem[] = [];
-    for (const item of saleItemsData) {
-      const itemResult = await db.insert(saleItems).values({
-        ...item,
-        saleId: sale.id,
+    // Run the entire sale creation atomically so a mid-flight failure can't leave orphaned records
+    return await db.transaction(async (tx) => {
+      const [sale] = await tx.insert(sales).values({
+        ...saleInfo,
+        receiptNumber,
       }).returning();
-      items.push(itemResult[0]);
 
-      // Decrease product quantity
-      await db.update(products)
-        .set({ quantity: sql`${products.quantity} - ${item.quantity}` })
-        .where(eq(products.id, item.productId));
-    }
+      const items: SaleItem[] = [];
+      for (const item of saleItemsData) {
+        const [inserted] = await tx.insert(saleItems).values({
+          ...item,
+          saleId: sale.id,
+        }).returning();
+        items.push(inserted);
 
-    return { sale, items };
+        // Decrease product quantity atomically
+        await tx.update(products)
+          .set({ quantity: sql`${products.quantity} - ${item.quantity}` })
+          .where(eq(products.id, item.productId));
+      }
+
+      return { sale, items };
+    });
   }
 
   async markSaleDelivered(id: string, paymentReceived: boolean): Promise<Sale | undefined> {
-    const updates: Partial<Sale> = { deliveredAt: new Date() } as any;
+    const updates: Record<string, unknown> = { deliveredAt: new Date() };
     if (paymentReceived) {
       const existing = await this.getSale(id);
       if (existing) {
-        (updates as any).amountPaid = existing.total;
+        updates.amountPaid = existing.total;
       }
     }
     const result = await db.update(sales).set(updates as any).where(eq(sales.id, id)).returning();

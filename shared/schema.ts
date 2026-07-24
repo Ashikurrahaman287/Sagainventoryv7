@@ -73,6 +73,19 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const smsLogs = pgTable("sms_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  event: text("event").notNull(), // "new_sale" | "payment_received" | "order_delivered"
+  recipient: text("recipient").notNull(),
+  message: text("message").notNull(),
+  requestId: text("request_id"),
+  status: text("status").notNull().default("sent"), // "sent" | "failed"
+  error: text("error"),
+  saleId: varchar("sale_id").references(() => sales.id),
+  receiptNumber: text("receipt_number"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const operationalCosts = pgTable("operational_costs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -142,6 +155,7 @@ export const insertOperationalCostSchema = createInsertSchema(operationalCosts).
 });
 
 // Select types
+export type SmsLog = typeof smsLogs.$inferSelect;
 export type Supplier = typeof suppliers.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type Seller = typeof sellers.$inferSelect;

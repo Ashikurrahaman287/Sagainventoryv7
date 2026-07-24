@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Mail,
   PackageCheck,
+  MessageSquare,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -48,6 +49,7 @@ const reportsItems = [
 
 const settingsItems = [
   { title: "Email", url: "/email", icon: Mail, testId: "link-email" },
+  { title: "SMS", url: "/sms", icon: MessageSquare, testId: "link-sms" },
   { title: "Settings", url: "/settings", icon: Settings, testId: "link-settings" },
 ];
 

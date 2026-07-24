@@ -3,6 +3,13 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { sendOrderConfirmationEmail, sendDeliveryEmails, sendTestEmail } from "./email";
 import {
+  sendSms,
+  getSmsBalance,
+  newSaleMessage,
+  paymentReceivedMessage,
+  orderDeliveredMessage,
+} from "./sms";
+import {
   insertSupplierSchema,
   insertCustomerSchema,
   insertSellerSchema,
@@ -382,36 +389,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await storage.createSale(data);
       res.status(201).json(result);
 
-      // Send order confirmation email (non-blocking)
-      try {
-        const customer = await storage.getCustomer(result.sale.customerId);
-        const seller = await storage.getSeller(result.sale.sellerId);
-        if (customer?.email) {
-          sendOrderConfirmationEmail({
-            receiptNumber: result.sale.receiptNumber,
-            customerName: customer.name,
-            customerEmail: customer.email,
-            sellerName: seller?.name || "—",
-            date: new Date(result.sale.createdAt).toLocaleDateString("en-BD", {
-              day: "2-digit", month: "long", year: "numeric",
-            }),
-            deliveryAddress: (result.sale as any).deliveryAddress,
-            items: result.items.map((item) => ({
-              productName: item.productName,
-              stockCode: item.stockCode,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              subtotal: item.subtotal,
-            })),
-            subtotal: result.sale.subtotal,
-            discount: result.sale.discount,
-            discountType: result.sale.discountType,
-            total: result.sale.total,
-            paymentMethod: result.sale.paymentMethod,
-            notes: result.sale.notes,
-          }).catch(() => {});
+      // Non-blocking: email + SMS
+      (async () => {
+        try {
+          const customer = await storage.getCustomer(result.sale.customerId);
+          const seller = await storage.getSeller(result.sale.sellerId);
+
+          // Order confirmation email
+          if (customer?.email) {
+            sendOrderConfirmationEmail({
+              receiptNumber: result.sale.receiptNumber,
+              customerName: customer.name,
+              customerEmail: customer.email,
+              sellerName: seller?.name || "—",
+              date: new Date(result.sale.createdAt).toLocaleDateString("en-BD", {
+                day: "2-digit", month: "long", year: "numeric",
+              }),
+              deliveryAddress: (result.sale as any).deliveryAddress,
+              items: result.items.map((item) => ({
+                productName: item.productName,
+                stockCode: item.stockCode,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                subtotal: item.subtotal,
+              })),
+              subtotal: result.sale.subtotal,
+              discount: result.sale.discount,
+              discountType: result.sale.discountType,
+              total: result.sale.total,
+              paymentMethod: result.sale.paymentMethod,
+              notes: result.sale.notes,
+            }).catch(() => {});
+          }
+
+          // New sale SMS
+          if (customer?.phone) {
+            const itemsSummary = result.items
+              .map((i) => `${i.productName} x${i.quantity}`)
+              .join(", ");
+            const msg = newSaleMessage({
+              customerName: customer.name,
+              receiptNumber: result.sale.receiptNumber,
+              total: result.sale.total,
+              items: itemsSummary,
+            });
+            const smsResult = await sendSms(customer.phone, msg);
+            await storage.createSmsLog({
+              event: "new_sale",
+              recipient: customer.phone,
+              message: msg,
+              requestId: smsResult.requestId,
+              status: smsResult.success ? "sent" : "failed",
+              error: smsResult.error,
+              saleId: result.sale.id,
+              receiptNumber: result.sale.receiptNumber,
+            });
+          }
+        } catch (err: any) {
+          console.error("[post-sale notifications]", err.message);
         }
-      } catch (_) {}
+      })();
     } catch (error: any) {
       if (error.code === "23503")
         return res.status(400).json({ error: "Invalid customer, seller, or product" });
@@ -424,35 +461,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const schema = z.object({ paymentReceived: z.boolean() });
       const { paymentReceived } = schema.parse(req.body);
 
-      console.log(`[deliver] PATCH /api/sales/${req.params.id}/deliver — paymentReceived=${paymentReceived}`);
-
       const updated = await storage.markSaleDelivered(req.params.id, paymentReceived);
       if (!updated) return res.status(404).json({ error: "Sale not found" });
 
-      console.log(`[deliver] DB updated — deliveredAt=${updated.deliveredAt}`);
-
-      // Attempt to send delivery emails if payment was received
       let emailResult: { success: boolean; error?: string } = { success: false, error: "Not attempted" };
-      if (paymentReceived) {
+
+      // Non-blocking notifications after delivery
+      (async () => {
         try {
           const saleData = await storage.getSaleWithItems(req.params.id);
-          console.log(`[deliver] saleData fetched — customerEmail=${saleData?.customerEmail}`);
-          if (!saleData?.customerEmail) {
-            emailResult = { success: false, error: "Customer has no email address on file" };
-          } else {
-            emailResult = await sendDeliveryEmails({
-              customerName: saleData.customerName,
-              customerEmail: saleData.customerEmail,
-              receiptNumber: saleData.sale.receiptNumber,
-              total: saleData.sale.total,
-            });
-            console.log(`[deliver] sendDeliveryEmails result:`, emailResult);
+          if (!saleData) return;
+
+          // Payment received email + SMS
+          if (paymentReceived) {
+            if (saleData.customerEmail) {
+              emailResult = await sendDeliveryEmails({
+                customerName: saleData.customerName,
+                customerEmail: saleData.customerEmail,
+                receiptNumber: saleData.sale.receiptNumber,
+                total: saleData.sale.total,
+              }).catch((e: any) => ({ success: false, error: e.message }));
+            } else {
+              emailResult = { success: false, error: "Customer has no email address on file" };
+            }
+
+            // Payment received SMS
+            const customer = await storage.getCustomer(saleData.sale.customerId);
+            if (customer?.phone) {
+              const msg = paymentReceivedMessage({
+                customerName: saleData.customerName,
+                receiptNumber: saleData.sale.receiptNumber,
+                total: saleData.sale.total,
+              });
+              const smsResult = await sendSms(customer.phone, msg);
+              await storage.createSmsLog({
+                event: "payment_received",
+                recipient: customer.phone,
+                message: msg,
+                requestId: smsResult.requestId,
+                status: smsResult.success ? "sent" : "failed",
+                error: smsResult.error,
+                saleId: saleData.sale.id,
+                receiptNumber: saleData.sale.receiptNumber,
+              });
+            }
           }
-        } catch (emailErr: any) {
-          console.error(`[deliver] Email error:`, emailErr);
-          emailResult = { success: false, error: emailErr.message };
+
+          // Order delivered SMS (always, regardless of payment)
+          const customer = await storage.getCustomer(saleData.sale.customerId);
+          if (customer?.phone) {
+            const msg = orderDeliveredMessage({
+              customerName: saleData.customerName,
+              receiptNumber: saleData.sale.receiptNumber,
+            });
+            const smsResult = await sendSms(customer.phone, msg);
+            await storage.createSmsLog({
+              event: "order_delivered",
+              recipient: customer.phone,
+              message: msg,
+              requestId: smsResult.requestId,
+              status: smsResult.success ? "sent" : "failed",
+              error: smsResult.error,
+              saleId: saleData.sale.id,
+              receiptNumber: saleData.sale.receiptNumber,
+            });
+          }
+        } catch (err: any) {
+          console.error("[deliver notifications]", err.message);
         }
-      }
+      })();
 
       res.json({ ...updated, emailResult });
     } catch (error: any) {
@@ -647,6 +724,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalOpCosts,
         netProfit: allSalesReport.profit - totalOpCosts,
       });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ── SMS ───────────────────────────────────────────────────────────────────
+  app.get("/api/sms/logs", async (_req, res) => {
+    try {
+      const logs = await storage.getSmsLogs(200);
+      res.json(logs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/sms/stats", async (_req, res) => {
+    try {
+      const stats = await storage.getSmsStats();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/sms/balance", async (_req, res) => {
+    try {
+      const result = await getSmsBalance();
+      res.json({ balance: result?.balance ?? null });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

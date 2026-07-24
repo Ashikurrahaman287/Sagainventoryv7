@@ -7,6 +7,7 @@ import type {
   Product,
   Sale,
   SaleItem,
+  SmsLog,
   InsertSupplier,
   InsertCustomer,
   InsertSeller,
@@ -16,7 +17,7 @@ import type {
   InsertOperationalCost,
 } from "@shared/schema";
 
-const { suppliers, customers, sellers, products, sales, saleItems, settings, operationalCosts } = schema;
+const { suppliers, customers, sellers, products, sales, saleItems, settings, operationalCosts, smsLogs } = schema;
 
 export interface IStorage {
   // Suppliers
@@ -90,6 +91,20 @@ export interface IStorage {
   getStockReportByCategory(): Promise<Array<{ category: string; products: number; value: number; costValue: number; totalQuantity: number; status: string }>>;
   getSalesReportByPeriod(period: string): Promise<{ transactions: number; revenue: number; profit: number }>;
   getTopCustomers(limit?: number): Promise<Array<{ name: string; purchases: number; spent: number }>>;
+
+  // SMS Logs
+  createSmsLog(data: {
+    event: string;
+    recipient: string;
+    message: string;
+    requestId?: string;
+    status: string;
+    error?: string;
+    saleId?: string;
+    receiptNumber?: string;
+  }): Promise<SmsLog>;
+  getSmsLogs(limit?: number): Promise<SmsLog[]>;
+  getSmsStats(): Promise<{ total: number; sent: number; failed: number }>;
 }
 
 export class DbStorage implements IStorage {
@@ -679,6 +694,46 @@ export class DbStorage implements IStorage {
       });
     }
     return results;
+  }
+  // SMS Logs
+  async createSmsLog(data: {
+    event: string;
+    recipient: string;
+    message: string;
+    requestId?: string;
+    status: string;
+    error?: string;
+    saleId?: string;
+    receiptNumber?: string;
+  }): Promise<SmsLog> {
+    const [row] = await db.insert(smsLogs).values({
+      event: data.event,
+      recipient: data.recipient,
+      message: data.message,
+      requestId: data.requestId ?? null,
+      status: data.status,
+      error: data.error ?? null,
+      saleId: data.saleId ?? null,
+      receiptNumber: data.receiptNumber ?? null,
+    }).returning();
+    return row;
+  }
+
+  async getSmsLogs(limit = 200): Promise<SmsLog[]> {
+    return db.select().from(smsLogs).orderBy(desc(smsLogs.createdAt)).limit(limit);
+  }
+
+  async getSmsStats(): Promise<{ total: number; sent: number; failed: number }> {
+    const result = await db.select({
+      total: sql<number>`count(*)`,
+      sent: sql<number>`count(*) filter (where ${smsLogs.status} = 'sent')`,
+      failed: sql<number>`count(*) filter (where ${smsLogs.status} = 'failed')`,
+    }).from(smsLogs);
+    return {
+      total: Number(result[0]?.total ?? 0),
+      sent: Number(result[0]?.sent ?? 0),
+      failed: Number(result[0]?.failed ?? 0),
+    };
   }
 }
 

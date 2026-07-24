@@ -39,17 +39,39 @@ export default function Delivery() {
   });
 
   const deliverMutation = useMutation({
-    mutationFn: ({ id, paymentReceived }: { id: string; paymentReceived: boolean }) =>
-      apiRequest("PATCH", `/api/sales/${id}/deliver`, { paymentReceived }),
-    onSuccess: () => {
+    mutationFn: async ({ id, paymentReceived }: { id: string; paymentReceived: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/sales/${id}/deliver`, { paymentReceived });
+      return res.json() as Promise<any>;
+    },
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setConfirmSale(null);
       setFilter("delivered");
-      toast({
-        title: "Delivery confirmed! ✅",
-        description: "Emails have been sent to the customer.",
-      });
+
+      if (!variables.paymentReceived) {
+        toast({
+          title: "Delivery confirmed ✅",
+          description: "Order marked as delivered (no payment email sent).",
+        });
+        return;
+      }
+
+      const emailResult = data?.emailResult;
+      if (emailResult?.success) {
+        toast({
+          title: "Delivery confirmed! ✅",
+          description: "Payment & delivery emails have been sent to the customer.",
+        });
+      } else {
+        toast({
+          title: "Delivery confirmed ✅ — Email failed ⚠️",
+          description: emailResult?.error
+            ? `Marked as delivered, but email failed: ${emailResult.error}`
+            : "Marked as delivered, but could not send email. Check Email Settings.",
+          variant: "destructive",
+        });
+      }
     },
     onError: (e: any) => {
       toast({ title: "Failed to mark delivery", description: e.message, variant: "destructive" });

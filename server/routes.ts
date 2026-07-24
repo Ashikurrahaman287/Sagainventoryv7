@@ -424,26 +424,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const schema = z.object({ paymentReceived: z.boolean() });
       const { paymentReceived } = schema.parse(req.body);
 
+      console.log(`[deliver] PATCH /api/sales/${req.params.id}/deliver — paymentReceived=${paymentReceived}`);
+
       const updated = await storage.markSaleDelivered(req.params.id, paymentReceived);
       if (!updated) return res.status(404).json({ error: "Sale not found" });
 
-      res.json(updated);
+      console.log(`[deliver] DB updated — deliveredAt=${updated.deliveredAt}`);
 
-      // Send delivery emails (non-blocking)
+      // Attempt to send delivery emails if payment was received
+      let emailResult: { success: boolean; error?: string } = { success: false, error: "Not attempted" };
       if (paymentReceived) {
         try {
           const saleData = await storage.getSaleWithItems(req.params.id);
-          if (saleData?.customerEmail) {
-            sendDeliveryEmails({
+          console.log(`[deliver] saleData fetched — customerEmail=${saleData?.customerEmail}`);
+          if (!saleData?.customerEmail) {
+            emailResult = { success: false, error: "Customer has no email address on file" };
+          } else {
+            emailResult = await sendDeliveryEmails({
               customerName: saleData.customerName,
               customerEmail: saleData.customerEmail,
               receiptNumber: saleData.sale.receiptNumber,
               total: saleData.sale.total,
-            }).catch(() => {});
+            });
+            console.log(`[deliver] sendDeliveryEmails result:`, emailResult);
           }
-        } catch (_) {}
+        } catch (emailErr: any) {
+          console.error(`[deliver] Email error:`, emailErr);
+          emailResult = { success: false, error: emailErr.message };
+        }
       }
+
+      res.json({ ...updated, emailResult });
     } catch (error: any) {
+      console.error(`[deliver] Route error:`, error);
       res.status(400).json({ error: error.message });
     }
   });

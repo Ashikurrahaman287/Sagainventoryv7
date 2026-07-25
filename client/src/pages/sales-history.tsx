@@ -263,13 +263,13 @@ export default function SalesHistory() {
                       View
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="destructive"
                       size="sm"
                       onClick={() => setDeleteTargetId(sale.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
                       data-testid={`button-delete-sale-${sale.id}`}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete
                     </Button>
                   </div>
                 </div>

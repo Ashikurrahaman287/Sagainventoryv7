@@ -422,16 +422,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }).catch(() => {});
           }
 
-          // New sale SMS
-          if (customer?.phone) {
-            const itemsSummary = result.items
-              .map((i) => `${i.productName} x${i.quantity}`)
-              .join(", ");
+          // New sale SMS — only when order total exceeds BDT 200
+          if (customer?.phone && parseFloat(result.sale.total) > 200) {
             const msg = newSaleMessage({
               customerName: customer.name,
               receiptNumber: result.sale.receiptNumber,
               total: result.sale.total,
-              items: itemsSummary,
             });
             const smsResult = await sendSms(customer.phone, msg);
             await storage.createSmsLog({

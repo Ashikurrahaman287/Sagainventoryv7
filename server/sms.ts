@@ -63,18 +63,21 @@ export async function getSmsBalance(): Promise<{ balance: string } | null> {
 
 // ── Templated messages ────────────────────────────────────────────────────────
 
+const MAX_SMS = 160;
+
+function truncate(text: string): string {
+  return text.length > MAX_SMS ? text.slice(0, MAX_SMS) : text;
+}
+
 export function newSaleMessage(opts: {
   customerName: string;
   receiptNumber: string;
   total: string;
-  items: string;
 }): string {
-  return (
-    `Dear ${opts.customerName}, your order has been placed successfully!\n` +
-    `Receipt: ${opts.receiptNumber}\n` +
-    `Items: ${opts.items}\n` +
-    `Total: BDT ${opts.total}\n` +
-    `Thank you for shopping with Undergraduate Hub!`
+  // Use only first name to keep within 160 chars
+  const firstName = opts.customerName.split(" ")[0];
+  return truncate(
+    `Dear ${firstName}, your order has been placed. Rcpt: ${opts.receiptNumber}. Total: BDT ${opts.total}. UNDERGRADUATE HUB`
   );
 }
 
@@ -83,10 +86,8 @@ export function paymentReceivedMessage(opts: {
   receiptNumber: string;
   total: string;
 }): string {
-  return (
-    `Dear ${opts.customerName}, your payment of BDT ${opts.total} has been received.\n` +
-    `Receipt: ${opts.receiptNumber}\n` +
-    `Thank you! - Undergraduate Hub`
+  return truncate(
+    `Dear ${opts.customerName}, payment of BDT ${opts.total} received for order ${opts.receiptNumber}. Thank you. Undergraduate Hub`
   );
 }
 
@@ -94,8 +95,7 @@ export function orderDeliveredMessage(opts: {
   customerName: string;
   receiptNumber: string;
 }): string {
-  return (
-    `Dear ${opts.customerName}, your order (${opts.receiptNumber}) has been successfully delivered.\n` +
-    `Thank you for shopping with Undergraduate Hub!`
+  return truncate(
+    `Dear ${opts.customerName}, your order ${opts.receiptNumber} has been delivered successfully. Thank you. Undergraduate Hub`
   );
 }

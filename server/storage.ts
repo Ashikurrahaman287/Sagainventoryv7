@@ -381,12 +381,14 @@ export class DbStorage implements IStorage {
   }
 
   async deleteSale(id: string): Promise<boolean> {
+    await db.delete(smsLogs).where(eq(smsLogs.saleId, id));
     await db.delete(saleItems).where(eq(saleItems.saleId, id));
     const result = await db.delete(sales).where(eq(sales.id, id)).returning();
     return result.length > 0;
   }
 
   async clearAllSales(): Promise<number> {
+    await db.delete(smsLogs);
     await db.delete(saleItems);
     const result = await db.delete(sales).returning();
     return result.length;

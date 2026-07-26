@@ -1,11 +1,10 @@
 /**
- * SMS service — Traccar SMS Gateway (Cloud Service)
- * Sends transactional SMS via the phone's SIM through Traccar's cloud relay.
- * Docs: https://www.traccar.org/sms-gateway/
+ * SMS service — SwiftSMS (swiftsms.astgd.com)
+ * Sends transactional SMS for new sales, payment received, and order delivered events.
  */
 
-const CLOUD_TOKEN = process.env.SMS_API_KEY || "";
-const CLOUD_URL = "https://sms.traccar.org/message";
+const API_KEY = process.env.SMS_API_KEY || "";
+const BASE_URL = "https://swiftsms.astgd.com/api/sms";
 
 export type SmsEvent = "new_sale" | "payment_received" | "order_delivered";
 
@@ -15,46 +14,102 @@ export interface SmsResult {
   error?: string;
 }
 
-/** Normalise a BD number to +880XXXXXXXXXX (E.164) format */
+const ERROR_MEANINGS: Record<number, string> = {
+  1002: "Sender ID / Masking not found",
+  1003: "API not found",
+  1004: "SPAM detected",
+  1005: "Internal error",
+  1006: "Internal error",
+  1007: "Balance insufficient",
+  1008: "Message is empty",
+  1009: "Message type not set",
+  1010: "Invalid user & password",
+  1011: "Invalid user ID",
+  1012: "Invalid number",
+  1013: "API limit error",
+  1014: "No matching template",
+  1015: "SMS content validation failed",
+};
+
+/** Normalise a BD number to 880XXXXXXXXXX format */
 function normaliseNumber(raw: string): string {
   const digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("880")) return "+" + digits;
-  if (digits.startsWith("0")) return "+880" + digits.slice(1);
-  return "+880" + digits;
+  if (digits.startsWith("880")) return digits;
+  if (digits.startsWith("0")) return "880" + digits.slice(1);
+  return "880" + digits;
 }
 
-/** Send a single SMS via Traccar SMS Gateway cloud */
+/** Send a single SMS via SwiftSMS */
 export async function sendSms(to: string, message: string): Promise<SmsResult> {
-  if (!CLOUD_TOKEN) {
-    return { success: false, error: "SMS_API_KEY (Traccar cloud token) is not configured" };
+  if (!API_KEY) {
+    return { success: false, error: "SMS_API_KEY is not configured" };
   }
-  const phone = normaliseNumber(to);
+  const number = normaliseNumber(to);
   try {
-    const res = await fetch(CLOUD_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${CLOUD_TOKEN}`,
-      },
-      body: JSON.stringify({ phone, message }),
+    const params = new URLSearchParams({
+      apikey: API_KEY,
+      phonenumber: number,
+      message,
+      label: "transactional",
     });
+    const res = await fetch(`${BASE_URL}/send?${params.toString()}`);
+    // API returns plain text — try JSON first, fall back to text
+    const raw = await res.text();
+    let body: any = null;
+    try { body = JSON.parse(raw); } catch { /* plain text response */ }
 
-    if (res.ok) {
-      return { success: true, requestId: `traccar-${Date.now()}` };
+    if (body !== null) {
+      if (body.error_code === 0 || body.status === "success") {
+        return { success: true, requestId: String(body.message_id ?? body.request_id ?? Date.now()) };
+      }
+      const meaning = ERROR_MEANINGS[body.error_code] ?? "Unknown error";
+      return { success: false, error: `Error ${body.error_code}: ${meaning}` };
     }
-    const text = await res.text().catch(() => res.statusText);
-    return { success: false, error: `HTTP ${res.status}: ${text}` };
+
+    // Plain text: success if it looks like a numeric message ID or "success"
+    const trimmed = raw.trim().toLowerCase();
+    if (/^\d+$/.test(raw.trim()) || trimmed === "success" || trimmed.startsWith("submitted")) {
+      return { success: true, requestId: raw.trim() };
+    }
+    // Map known plain-text error phrases to error codes
+    const errCode = Object.entries({
+      1007: "insufficient",
+      1012: "invalid number",
+      1008: "message is empty",
+      1004: "spam",
+    }).find(([, kw]) => trimmed.includes(kw));
+    if (errCode) {
+      const code = parseInt(errCode[0]);
+      return { success: false, error: `Error ${code}: ${ERROR_MEANINGS[code]}` };
+    }
+    return { success: false, error: raw.trim() || "Unknown error from SwiftSMS" };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
 }
 
-/**
- * Traccar SMS Gateway has no balance API — it sends through the phone SIM.
- * Returns null so the SMS page gracefully hides the balance card.
- */
+/** Fetch current SMS balance from SwiftSMS */
 export async function getSmsBalance(): Promise<{ balance: string } | null> {
-  return null;
+  try {
+    const res = await fetch(`${BASE_URL}/getbalance?apikey=${API_KEY}`);
+    const raw = await res.text();
+    // Response may be: {'available': 5, 'used': 2}  (Python-style) or valid JSON
+    let body: any = null;
+    try { body = JSON.parse(raw); } catch { /* not JSON */ }
+    if (body === null) {
+      // Replace single quotes → double quotes to make it valid JSON
+      try { body = JSON.parse(raw.replace(/'/g, '"')); } catch { /* give up */ }
+    }
+    if (body?.available !== undefined) {
+      return { balance: String(body.available) };
+    }
+    if (body?.balance !== undefined) {
+      return { balance: String(body.balance) };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Templated messages ────────────────────────────────────────────────────────

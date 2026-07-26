@@ -1,10 +1,11 @@
 /**
- * SMS service — sms.net.bd
+ * SMS service — bulksmsbd.net
  * Sends transactional SMS for new sales, payment received, and order delivered events.
  */
 
 const API_KEY = process.env.SMS_API_KEY || "";
-const BASE_URL = "https://api.sms.net.bd";
+const SENDER_ID = "8809617000000";
+const BASE_URL = "http://bulksmsbd.net/api";
 
 export type SmsEvent = "new_sale" | "payment_received" | "order_delivered";
 
@@ -14,7 +15,7 @@ export interface SmsResult {
   error?: string;
 }
 
-/** Normalise a BD number to 880XXXXXXXXXX format */
+/** Normalise a BD number to 88017XXXXXXXX format */
 function normaliseNumber(raw: string): string {
   const digits = raw.replace(/\D/g, "");
   if (digits.startsWith("880")) return digits;
@@ -22,39 +23,45 @@ function normaliseNumber(raw: string): string {
   return "880" + digits;
 }
 
-/** Send a single SMS via sms.net.bd POST endpoint */
+/** Send a single SMS via bulksmsbd.net */
 export async function sendSms(to: string, message: string): Promise<SmsResult> {
   if (!API_KEY) {
     return { success: false, error: "SMS_API_KEY is not configured" };
   }
   const number = normaliseNumber(to);
   try {
-    const body = new URLSearchParams({
+    const params = new URLSearchParams({
       api_key: API_KEY,
-      msg: message,
-      to: number,
+      type: "text",
+      number,
+      senderid: SENDER_ID,
+      message,
     });
-    const res = await fetch(`${BASE_URL}/sendsms`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
+    const res = await fetch(`${BASE_URL}/smsapi?${params.toString()}`, {
+      method: "GET",
     });
     const json = await res.json() as any;
-    if (json.error === 0) {
-      return { success: true, requestId: String(json.data?.request_id ?? "") };
+    // Success code from bulksmsbd is 202
+    if (json.response_code === 202) {
+      return { success: true, requestId: String(json.message_id ?? "") };
     }
-    return { success: false, error: `API error ${json.error}: ${json.msg}` };
+    return {
+      success: false,
+      error: `Error ${json.response_code}: ${json.error_message ?? json.message ?? "Unknown error"}`,
+    };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
 }
 
-/** Fetch current SMS balance */
+/** Fetch current SMS balance from bulksmsbd.net */
 export async function getSmsBalance(): Promise<{ balance: string } | null> {
   try {
-    const res = await fetch(`${BASE_URL}/user/balance/?api_key=${API_KEY}`);
+    const res = await fetch(`${BASE_URL}/getBalanceApi?api_key=${API_KEY}`);
     const json = await res.json() as any;
-    if (json.error === 0) return { balance: json.data.balance };
+    if (json.response_code === 202 && json.balance !== undefined) {
+      return { balance: String(json.balance) };
+    }
     return null;
   } catch {
     return null;
@@ -74,7 +81,6 @@ export function newSaleMessage(opts: {
   receiptNumber: string;
   total: string;
 }): string {
-  // Use only first name to keep within 160 chars
   const firstName = opts.customerName.split(" ")[0];
   return truncate(
     `Dear ${firstName}, your order has been placed. Rcpt: ${opts.receiptNumber}. Total: BDT ${opts.total}. UNDERGRADUATE HUB`

@@ -1,0 +1,47 @@
+API Key Regenerate
+Your Api Key * :
+kXo7SoceDS1X8gYdhpyy
+ 
+API Example Code
+JSON data format : One to Many | Many to Many
+PHP code : One to Many | Many to Many
+Oracle code : One to Many
+C# .Net code: One to Many | Many to Many
+
+OTP পাঠানোর জন্য এই ফরম্যাট টি ফলো করুন (Your {Brand/Company Name} OTP is XXXX)
+SMS API
+API URL (GET & POST) : http://bulksmsbd.net/api/smsapi?api_key=kXo7SoceDS1X8gYdhpyy&type=text&number=Receiver&senderid=8809617000000&message=TestSMS
+Parameter Name
+Meaning/Value
+Required
+Description
+api_key	API Key	Yes	API Key : kXo7SoceDS1X8gYdhpyy
+senderid	Approved Sender ID	Yes	Sender ID : 8809617000000
+number	mobile number	Yes	Exp: 88017XXXXXXXX,88018XXXXXXXX,88019XXXXXXXX...
+message	SMS body	Yes	Please use url encoding to send some special characters like &, $, @ etc
+messages	SMS body(for Many SMS API)	Yes	Mixed Phone Number and Message accroding to the Correct Format
+Credit Balance API PHP Source Code
+API URL (GET & POST) : http://bulksmsbd.net/api/getBalanceApi?api_key=kXo7SoceDS1X8gYdhpyy
+Error Success Code & Meaning
+Code
+Meaning
+202	SMS Submitted Successfully
+1001	Invalid Number
+1002	sender id not correct/sender id is disabled
+1003	Please Required all fields/Contact Your System Administrator
+1005	Internal Error
+1006	Balance Validity Not Available
+1007	Balance Insufficient
+1011	User Id not found
+1012	Masking SMS must be sent in Bengali
+1013	Sender Id has not found Gateway by api key
+1014	Sender Type Name not found using this sender by api key
+1015	Sender Id has not found Any Valid Gateway by api key
+1016	Sender Type Name Active Price Info not found by this sender id
+1017	Sender Type Name Price Info not found by this sender id
+1018	The Owner of this (username) Account is disabled
+1019	The (sender type name) Price of this (username) Account is disabled
+1020	The parent of this account is not found.
+1021	The parent active (sender type name) price of this account is not found.
+1031	Your Account Not Verified, Please Contact Administrator.
+1032	ip Not whitelisted

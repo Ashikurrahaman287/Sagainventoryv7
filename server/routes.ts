@@ -1,7 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { sendOrderConfirmationEmail, sendDeliveryEmails, sendTestEmail } from "./email";
+import {
+  sendOrderConfirmationEmail,
+  sendDeliveryEmails,
+  sendTestEmail,
+} from "./email";
 import {
   sendSms,
   getSmsBalance,
@@ -145,7 +149,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertSupplierSchema.partial().parse(req.body);
       const supplier = await storage.updateSupplier(req.params.id, data);
-      if (!supplier) return res.status(404).json({ error: "Supplier not found" });
+      if (!supplier)
+        return res.status(404).json({ error: "Supplier not found" });
       res.json(supplier);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -155,11 +160,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/suppliers/:id", async (req, res) => {
     try {
       const success = await storage.deleteSupplier(req.params.id);
-      if (!success) return res.status(404).json({ error: "Supplier not found" });
+      if (!success)
+        return res.status(404).json({ error: "Supplier not found" });
       res.status(204).send();
     } catch (error: any) {
       if (error.code === "23503")
-        return res.status(400).json({ error: "Cannot delete supplier: it has associated products" });
+        return res
+          .status(400)
+          .json({
+            error: "Cannot delete supplier: it has associated products",
+          });
       res.status(500).json({ error: error.message });
     }
   });
@@ -168,7 +178,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/customers", async (_req, res) => {
     const customers = await storage.getCustomers();
     const enriched = await Promise.all(
-      customers.map(async (c) => ({ ...c, ...(await storage.getCustomerStats(c.id)) }))
+      customers.map(async (c) => ({
+        ...c,
+        ...(await storage.getCustomerStats(c.id)),
+      })),
     );
     res.json(enriched);
   });
@@ -194,7 +207,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertCustomerSchema.partial().parse(req.body);
       const customer = await storage.updateCustomer(req.params.id, data);
-      if (!customer) return res.status(404).json({ error: "Customer not found" });
+      if (!customer)
+        return res.status(404).json({ error: "Customer not found" });
       res.json(customer);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -204,11 +218,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/customers/:id", async (req, res) => {
     try {
       const success = await storage.deleteCustomer(req.params.id);
-      if (!success) return res.status(404).json({ error: "Customer not found" });
+      if (!success)
+        return res.status(404).json({ error: "Customer not found" });
       res.status(204).send();
     } catch (error: any) {
       if (error.code === "23503")
-        return res.status(400).json({ error: "Cannot delete customer: they have associated sales" });
+        return res
+          .status(400)
+          .json({
+            error: "Cannot delete customer: they have associated sales",
+          });
       res.status(500).json({ error: error.message });
     }
   });
@@ -217,7 +236,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/sellers", async (_req, res) => {
     const sellers = await storage.getSellers();
     const enriched = await Promise.all(
-      sellers.map(async (s) => ({ ...s, ...(await storage.getSellerStats(s.id)) }))
+      sellers.map(async (s) => ({
+        ...s,
+        ...(await storage.getSellerStats(s.id)),
+      })),
     );
     res.json(enriched);
   });
@@ -257,7 +279,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error: any) {
       if (error.code === "23503")
-        return res.status(400).json({ error: "Cannot delete seller: they have associated sales" });
+        return res
+          .status(400)
+          .json({ error: "Cannot delete seller: they have associated sales" });
       res.status(500).json({ error: error.message });
     }
   });
@@ -291,14 +315,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (data.stockCode) {
         const existing = await storage.getProductByStockCode(data.stockCode);
-        if (existing) return res.status(409).json({ error: "A product with this stock code already exists" });
+        if (existing)
+          return res
+            .status(409)
+            .json({ error: "A product with this stock code already exists" });
       }
 
       const product = await storage.createProduct(data);
       res.status(201).json(product);
     } catch (error: any) {
       if (error.code === "23505")
-        return res.status(409).json({ error: "A product with this stock code already exists" });
+        return res
+          .status(409)
+          .json({ error: "A product with this stock code already exists" });
       if (error.code === "23503")
         return res.status(400).json({ error: "Invalid supplier selected" });
       res.status(400).json({ error: error.message });
@@ -321,7 +350,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (data.stockCode) {
         const existing = await storage.getProductByStockCode(data.stockCode);
         if (existing && existing.id !== req.params.id)
-          return res.status(409).json({ error: "A product with this stock code already exists" });
+          return res
+            .status(409)
+            .json({ error: "A product with this stock code already exists" });
       }
 
       const product = await storage.updateProduct(req.params.id, data);
@@ -329,7 +360,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(product);
     } catch (error: any) {
       if (error.code === "23505")
-        return res.status(409).json({ error: "A product with this stock code already exists" });
+        return res
+          .status(409)
+          .json({ error: "A product with this stock code already exists" });
       if (error.code === "23503")
         return res.status(400).json({ error: "Invalid supplier selected" });
       res.status(400).json({ error: error.message });
@@ -343,7 +376,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error: any) {
       if (error.code === "23503")
-        return res.status(400).json({ error: "Cannot delete product: it has been sold" });
+        return res
+          .status(400)
+          .json({ error: "Cannot delete product: it has been sold" });
       res.status(500).json({ error: error.message });
     }
   });
@@ -356,8 +391,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const { quantity, type } = schema.parse(req.body);
       if (type === "set" && quantity < 0)
-        return res.status(400).json({ error: "Stock quantity cannot be negative" });
-      const product = await storage.adjustProductStock(req.params.id, quantity, type);
+        return res
+          .status(400)
+          .json({ error: "Stock quantity cannot be negative" });
+      const product = await storage.adjustProductStock(
+        req.params.id,
+        quantity,
+        type,
+      );
       if (!product) return res.status(404).json({ error: "Product not found" });
       res.json(product);
     } catch (error: any) {
@@ -379,7 +420,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/sales/:id", async (req, res) => {
     const saleWithItems = await storage.getSaleWithItems(req.params.id);
-    if (!saleWithItems) return res.status(404).json({ error: "Sale not found" });
+    if (!saleWithItems)
+      return res.status(404).json({ error: "Sale not found" });
     res.json(saleWithItems);
   });
 
@@ -402,9 +444,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               customerName: customer.name,
               customerEmail: customer.email,
               sellerName: seller?.name || "—",
-              date: new Date(result.sale.createdAt).toLocaleDateString("en-BD", {
-                day: "2-digit", month: "long", year: "numeric",
-              }),
+              date: new Date(result.sale.createdAt).toLocaleDateString(
+                "en-BD",
+                {
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
+                },
+              ),
               deliveryAddress: (result.sale as any).deliveryAddress,
               items: result.items.map((item) => ({
                 productName: item.productName,
@@ -423,7 +470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // New sale SMS — only when order total exceeds BDT 200
-          if (customer?.phone && parseFloat(result.sale.total) > 200) {
+          if (customer?.phone && parseFloat(result.sale.total) > 50) {
             const msg = newSaleMessage({
               customerName: customer.name,
               receiptNumber: result.sale.receiptNumber,
@@ -447,7 +494,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })();
     } catch (error: any) {
       if (error.code === "23503")
-        return res.status(400).json({ error: "Invalid customer, seller, or product" });
+        return res
+          .status(400)
+          .json({ error: "Invalid customer, seller, or product" });
       res.status(400).json({ error: error.message });
     }
   });
@@ -457,10 +506,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const schema = z.object({ paymentReceived: z.boolean() });
       const { paymentReceived } = schema.parse(req.body);
 
-      const updated = await storage.markSaleDelivered(req.params.id, paymentReceived);
+      const updated = await storage.markSaleDelivered(
+        req.params.id,
+        paymentReceived,
+      );
       if (!updated) return res.status(404).json({ error: "Sale not found" });
 
-      let emailResult: { success: boolean; error?: string } = { success: false, error: "Not attempted" };
+      let emailResult: { success: boolean; error?: string } = {
+        success: false,
+        error: "Not attempted",
+      };
 
       // Non-blocking notifications after delivery
       (async () => {
@@ -478,11 +533,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 total: saleData.sale.total,
               }).catch((e: any) => ({ success: false, error: e.message }));
             } else {
-              emailResult = { success: false, error: "Customer has no email address on file" };
+              emailResult = {
+                success: false,
+                error: "Customer has no email address on file",
+              };
             }
 
             // Payment received SMS
-            const customer = await storage.getCustomer(saleData.sale.customerId);
+            const customer = await storage.getCustomer(
+              saleData.sale.customerId,
+            );
             if (customer?.phone) {
               const msg = paymentReceivedMessage({
                 customerName: saleData.customerName,
@@ -564,7 +624,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/dashboard/low-stock", async (req, res) => {
-    const threshold = req.query.threshold ? parseInt(req.query.threshold as string) : 20;
+    const threshold = req.query.threshold
+      ? parseInt(req.query.threshold as string)
+      : 20;
     const products = await storage.getLowStockProducts(threshold);
     res.json(products);
   });
@@ -605,7 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         host: s.emailSmtpHost || "(not set)",
         port: s.emailSmtpPort || "(not set)",
         user: s.emailSmtpUser || "(not set)",
-        hasPassword: !!(s.emailSmtpPass),
+        hasPassword: !!s.emailSmtpPass,
         passwordLength: s.emailSmtpPass?.length ?? 0,
         enabled: s.emailEnabled,
       });
@@ -617,7 +679,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/email/test", async (req, res) => {
     try {
       const { to } = req.body;
-      if (!to) return res.status(400).json({ error: "Recipient email required" });
+      if (!to)
+        return res.status(400).json({ error: "Recipient email required" });
       const result = await sendTestEmail(to);
       if (!result.success) return res.status(400).json({ error: result.error });
       res.json({ success: true });
@@ -638,7 +701,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/operational-costs/monthly", async (req, res) => {
     try {
-      const months = req.query.months ? parseInt(req.query.months as string) : 6;
+      const months = req.query.months
+        ? parseInt(req.query.months as string)
+        : 6;
       const data = await storage.getOperationalCostMonthly(months);
       res.json(data);
     } catch (error: any) {
@@ -690,7 +755,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Audit ─────────────────────────────────────────────────────────────────
   app.get("/api/audit/summary", async (_req, res) => {
     try {
-      const [allSalesReport, yearReport, products, customers, suppliers, sellers, opCosts] = await Promise.all([
+      const [
+        allSalesReport,
+        yearReport,
+        products,
+        customers,
+        suppliers,
+        sellers,
+        opCosts,
+      ] = await Promise.all([
         (storage as any).getSalesReportByPeriod("all"),
         (storage as any).getSalesReportByPeriod("year"),
         storage.getProducts(),
@@ -700,9 +773,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getOperationalCosts(),
       ]);
 
-      const totalOpCosts = opCosts.reduce((sum: number, c: any) => sum + Number(c.amount), 0);
-      const inventoryValue = products.reduce((sum: any, p: any) => sum + Number(p.sellingPrice) * p.quantity, 0);
-      const inventoryCostValue = products.reduce((sum: any, p: any) => sum + Number(p.buyingPrice) * p.quantity, 0);
+      const totalOpCosts = opCosts.reduce(
+        (sum: number, c: any) => sum + Number(c.amount),
+        0,
+      );
+      const inventoryValue = products.reduce(
+        (sum: any, p: any) => sum + Number(p.sellingPrice) * p.quantity,
+        0,
+      );
+      const inventoryCostValue = products.reduce(
+        (sum: any, p: any) => sum + Number(p.buyingPrice) * p.quantity,
+        0,
+      );
 
       res.json({
         totalRevenue: allSalesReport.revenue,

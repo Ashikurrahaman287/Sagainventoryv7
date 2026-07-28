@@ -137,7 +137,7 @@ export function paymentReceivedMessage(opts: {
   total: string;
 }): string {
   return truncate(
-    `Dear ${opts.customerName}, payment of BDT ${opts.total} received for order ${opts.receiptNumber}. Thank you. Undergraduate Hub`
+    `Dear ${opts.customerName}, payment of BDT ${opts.total} received for order ${opts.receiptNumber}. Thank you. UNDERGRADUATE HUB`
   );
 }
 
@@ -146,6 +146,6 @@ export function orderDeliveredMessage(opts: {
   receiptNumber: string;
 }): string {
   return truncate(
-    `Dear ${opts.customerName}, your order ${opts.receiptNumber} has been delivered successfully. Thank you. Undergraduate Hub`
+    `Dear ${opts.customerName}, your order ${opts.receiptNumber} has been delivered successfully. Thank you. UNDERGRADUATE HUB`
   );
 }

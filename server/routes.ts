@@ -406,6 +406,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Packaging ─────────────────────────────────────────────────────────────
+  app.get("/api/packaging", async (_req, res) => {
+    try {
+      const orders = await storage.getPackagingOrders();
+      res.json(orders);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/packaging/:id/packed", async (req, res) => {
+    try {
+      const updated = await storage.markOrderPacked(req.params.id);
+      if (!updated) return res.status(404).json({ error: "Order not found" });
+      res.json(updated);
+      // No notifications during packaging stage — by design
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/delivery/:id/reschedule", async (req, res) => {
+    try {
+      const schema = z.object({
+        deliveryDate: z.string().nullable(),
+        deliveryTime: z.string().nullable(),
+      });
+      const { deliveryDate, deliveryTime } = schema.parse(req.body);
+      const updated = await storage.rescheduleDelivery(req.params.id, deliveryDate, deliveryTime);
+      if (!updated) return res.status(404).json({ error: "Order not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ── Delivery (packed orders only) ─────────────────────────────────────────
+  app.get("/api/delivery", async (_req, res) => {
+    try {
+      const orders = await storage.getDeliveryOrders();
+      res.json(orders);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ── Sales ─────────────────────────────────────────────────────────────────
   app.get("/api/sales/recent", async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;

@@ -19,6 +19,9 @@ import type {
 
 const { suppliers, customers, sellers, products, sales, saleItems, settings, operationalCosts, smsLogs } = schema;
 
+// Extended sale type for internal packaging use (includes packagingCost)
+export type SaleWithDetails = Sale & { customerName: string; sellerName: string };
+
 export interface IStorage {
   // Suppliers
   getSuppliers(): Promise<Supplier[]>;
@@ -57,8 +60,15 @@ export interface IStorage {
   getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[]; customerName: string; sellerName: string; customerEmail: string; customerPhone: string } | undefined>;
   createSale(sale: InsertSale): Promise<{ sale: Sale; items: SaleItem[] }>;
   markSaleDelivered(id: string, paymentReceived: boolean): Promise<Sale | undefined>;
+  markOrderPacked(id: string): Promise<Sale | undefined>;
   deleteSale(id: string): Promise<boolean>;
   clearAllSales(): Promise<number>;
+
+  // Packaging
+  getPackagingOrders(): Promise<Array<Sale & { customerName: string; sellerName: string; items: SaleItem[] }>>;
+
+  // Delivery (with date-based grouping data)
+  getDeliveryOrders(): Promise<Array<Sale & { customerName: string; sellerName: string }>>;
 
   // Settings
   getSetting(key: string): Promise<string | undefined>;
@@ -106,6 +116,28 @@ export interface IStorage {
   getSmsLogs(limit?: number): Promise<SmsLog[]>;
   getSmsStats(): Promise<{ total: number; sent: number; failed: number }>;
 }
+
+// Helper to select all sale columns
+const saleColumns = {
+  id: sales.id,
+  receiptNumber: sales.receiptNumber,
+  customerId: sales.customerId,
+  sellerId: sales.sellerId,
+  subtotal: sales.subtotal,
+  discount: sales.discount,
+  discountType: sales.discountType,
+  total: sales.total,
+  paymentMethod: sales.paymentMethod,
+  notes: sales.notes,
+  deliveryAddress: sales.deliveryAddress,
+  deliveryDate: sales.deliveryDate,
+  deliveryTime: sales.deliveryTime,
+  packagingCost: sales.packagingCost,
+  orderStatus: sales.orderStatus,
+  amountPaid: sales.amountPaid,
+  deliveredAt: sales.deliveredAt,
+  createdAt: sales.createdAt,
+};
 
 export class DbStorage implements IStorage {
   // Suppliers
@@ -259,20 +291,7 @@ export class DbStorage implements IStorage {
   // Sales — always join with customer and seller names
   async getSales(): Promise<Array<Sale & { customerName: string; sellerName: string }>> {
     return db.select({
-      id: sales.id,
-      receiptNumber: sales.receiptNumber,
-      customerId: sales.customerId,
-      sellerId: sales.sellerId,
-      subtotal: sales.subtotal,
-      discount: sales.discount,
-      discountType: sales.discountType,
-      total: sales.total,
-      paymentMethod: sales.paymentMethod,
-      notes: sales.notes,
-      deliveryAddress: sales.deliveryAddress,
-      amountPaid: sales.amountPaid,
-      deliveredAt: sales.deliveredAt,
-      createdAt: sales.createdAt,
+      ...saleColumns,
       customerName: customers.name,
       sellerName: sellers.name,
     })
@@ -290,20 +309,7 @@ export class DbStorage implements IStorage {
   async getSaleWithItems(id: string): Promise<{ sale: Sale; items: SaleItem[]; customerName: string; sellerName: string; customerEmail: string; customerPhone: string } | undefined> {
     const saleResult = await db
       .select({
-        id: sales.id,
-        receiptNumber: sales.receiptNumber,
-        customerId: sales.customerId,
-        sellerId: sales.sellerId,
-        subtotal: sales.subtotal,
-        discount: sales.discount,
-        discountType: sales.discountType,
-        total: sales.total,
-        paymentMethod: sales.paymentMethod,
-        notes: sales.notes,
-        deliveryAddress: sales.deliveryAddress,
-        amountPaid: sales.amountPaid,
-        deliveredAt: sales.deliveredAt,
-        createdAt: sales.createdAt,
+        ...saleColumns,
         customerName: customers.name,
         customerEmail: customers.email,
         customerPhone: customers.phone,
@@ -348,6 +354,7 @@ export class DbStorage implements IStorage {
       const [sale] = await tx.insert(sales).values({
         ...saleInfo,
         receiptNumber,
+        orderStatus: 'packaging',
       }).returning();
 
       const items: SaleItem[] = [];
@@ -368,8 +375,27 @@ export class DbStorage implements IStorage {
     });
   }
 
+  async rescheduleDelivery(id: string, deliveryDate: string | null, deliveryTime: string | null): Promise<Sale | undefined> {
+    const result = await db.update(sales)
+      .set({ deliveryDate, deliveryTime } as any)
+      .where(eq(sales.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async markOrderPacked(id: string): Promise<Sale | undefined> {
+    const result = await db.update(sales)
+      .set({ orderStatus: 'ready_for_delivery' })
+      .where(eq(sales.id, id))
+      .returning();
+    return result[0];
+  }
+
   async markSaleDelivered(id: string, paymentReceived: boolean): Promise<Sale | undefined> {
-    const updates: Record<string, unknown> = { deliveredAt: new Date() };
+    const updates: Record<string, unknown> = {
+      deliveredAt: new Date(),
+      orderStatus: 'delivered',
+    };
     if (paymentReceived) {
       const existing = await this.getSale(id);
       if (existing) {
@@ -378,6 +404,51 @@ export class DbStorage implements IStorage {
     }
     const result = await db.update(sales).set(updates as any).where(eq(sales.id, id)).returning();
     return result[0];
+  }
+
+  // Packaging: orders that are in 'packaging' status (or legacy: no orderStatus, not delivered)
+  rescheduleDelivery(id: string, deliveryDate: string | null, deliveryTime: string | null): Promise<Sale | undefined>;
+
+  // Packaging
+  getPackagingOrders(): Promise<Array<Sale & { customerName: string; sellerName: string; items: SaleItem[] }>> {
+    const rows = await db.select({
+      ...saleColumns,
+      customerName: customers.name,
+      sellerName: sellers.name,
+    })
+    .from(sales)
+    .innerJoin(customers, eq(sales.customerId, customers.id))
+    .innerJoin(sellers, eq(sales.sellerId, sellers.id))
+    .where(eq(sales.orderStatus, 'packaging'))
+    .orderBy(desc(sales.createdAt));
+
+    // Attach items for each order
+    const result = await Promise.all(rows.map(async (row) => {
+      const { customerName, sellerName, ...sale } = row as any;
+      const items = await db.select().from(saleItems).where(eq(saleItems.saleId, sale.id));
+      return { ...sale, customerName, sellerName, items };
+    }));
+
+    return result;
+  }
+
+  // Delivery: orders that are 'ready_for_delivery' (packed but not yet delivered)
+  async getDeliveryOrders(): Promise<Array<Sale & { customerName: string; sellerName: string }>> {
+    return db.select({
+      ...saleColumns,
+      customerName: customers.name,
+      sellerName: sellers.name,
+    })
+    .from(sales)
+    .innerJoin(customers, eq(sales.customerId, customers.id))
+    .innerJoin(sellers, eq(sales.sellerId, sellers.id))
+    .where(
+      or(
+        eq(sales.orderStatus, 'ready_for_delivery'),
+        eq(sales.orderStatus, 'delivered'),
+      )!
+    )
+    .orderBy(desc(sales.createdAt));
   }
 
   async deleteSale(id: string): Promise<boolean> {
@@ -476,20 +547,7 @@ export class DbStorage implements IStorage {
 
   async getRecentSales(limit: number = 10) {
     return db.select({
-      id: sales.id,
-      receiptNumber: sales.receiptNumber,
-      customerId: sales.customerId,
-      sellerId: sales.sellerId,
-      subtotal: sales.subtotal,
-      discount: sales.discount,
-      discountType: sales.discountType,
-      total: sales.total,
-      paymentMethod: sales.paymentMethod,
-      notes: sales.notes,
-      deliveryAddress: sales.deliveryAddress,
-      amountPaid: sales.amountPaid,
-      deliveredAt: sales.deliveredAt,
-      createdAt: sales.createdAt,
+      ...saleColumns,
       customerName: customers.name,
       sellerName: sellers.name,
     })
@@ -697,6 +755,7 @@ export class DbStorage implements IStorage {
     }
     return results;
   }
+
   // SMS Logs
   async createSmsLog(data: {
     event: string;

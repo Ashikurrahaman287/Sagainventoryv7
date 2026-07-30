@@ -23,6 +23,7 @@ import OperationalCosts from "@/pages/operational-costs";
 import Audit from "@/pages/audit";
 import EmailSettings from "@/pages/email-settings";
 import Delivery from "@/pages/delivery";
+import Packaging from "@/pages/packaging";
 import SmsPage from "@/pages/sms";
 import NotFound from "@/pages/not-found";
 
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/operational-costs" component={OperationalCosts} />
       <Route path="/audit" component={Audit} />
       <Route path="/delivery" component={Delivery} />
+      <Route path="/packaging" component={Packaging} />
       <Route path="/email" component={EmailSettings} />
       <Route path="/sms" component={SmsPage} />
       <Route path="/settings" component={Settings} />

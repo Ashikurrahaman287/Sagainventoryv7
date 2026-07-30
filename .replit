@@ -45,3 +45,7 @@ waitForPort = 5000
 integrations = ["javascript_database:1.0.0"]
 expertMode = true
 stack = "FULLSTACK_JS"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000

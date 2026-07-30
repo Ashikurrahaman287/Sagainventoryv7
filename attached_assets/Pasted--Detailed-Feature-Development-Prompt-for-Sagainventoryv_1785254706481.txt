@@ -1,0 +1,99 @@
+
+
+Detailed Feature Development Prompt for Sagainventoryv7
+
+Project Context  
+You are working on the full-stack inventory & sales management application Sagainventoryv7 (https://github.com/Ashikurrahaman287/Sagainventoryv7).  
+Tech stack: React 18 + TypeScript + Vite + Tailwind + Shadcn/ui (frontend), Express + TypeScript + Drizzle ORM + PostgreSQL (backend).  
+
+Please implement the following new features carefully, maintaining the existing design system (dark-mode-first, clean Material Design 3 + Shadcn aesthetics), TypeScript types, and overall code quality.
+
+1. New “Packaging” Workflow (Internal Stage)
+
+Problem  
+After an order is confirmed, the list of items that need to be packed is currently messy and hard to manage.
+
+Requirements
+Create a new dedicated page/section called Packaging.
+Workflow:
+  When a sale/order is confirmed → the order automatically appears in the Packaging list.
+  In the Packaging view, the user can clearly see:
+     Order number / receipt number
+     Customer name
+     List of products to pack (with quantities)
+     Current status (Pending Packaging)
+     Packaging Cost (internal only – see section 3)
+  Once packing is finished, the user clicks a prominent “Done / Mark as Packed” button.
+  After clicking “Done”, the order is automatically moved to the Delivery section and removed from Packaging.
+This stage is completely internal.  
+  → Do NOT send any SMS, WhatsApp, or email notifications when an order enters or leaves the Packaging stage.
+Add proper status tracking in the database (e.g., order_status: confirmed → packaging → ready_for_delivery → delivered).
+
+2. Delivery Date, Time & Location + Smart Delivery Filtering
+
+During Sale / Order Creation (Sell Page)
+Add three new required/optional fields when creating a sale:
+  Delivery Date (date picker)
+  Delivery Time (time picker)
+  Delivery Location / Address (text field or multi-line)
+These three fields must be stored with the sale record.
+
+In the Delivery Section
+Display deliveries grouped into clear tabs or sections:
+  Today
+  Tomorrow
+  Upcoming (any date after tomorrow)
+Each delivery card/list item should show:
+  Order number
+  Customer name
+  Delivery Date + Time
+  Location
+  Packaging status (already packed)
+  Action buttons (Mark as Delivered, etc.)
+
+3. Packaging Cost (Strictly Internal Only)
+
+On the Sell / Create Order page, add a new field called Packaging Cost.
+This is a manual numeric input (decimal) that the staff can enter at the time of creating the order.
+Critical rules for Packaging Cost**:
+  It must never be added to the customer-facing total order amount.
+  It must never appear on customer receipts, invoices, order summaries, OrderBook / Sales History, emails, SMS, or any customer-visible screen.
+  It must never be sent to users in any notification.
+  It is completely internal and must only be visible inside the Packaging section.
+In the Packaging page:
+  Show the Packaging Cost for each individual order.
+  Also display a clear “Total Amount Spent on Packaging” (sum of all packaging costs of orders currently in the Packaging list, or a filtered/aggregated total as appropriate).
+Store the Packaging Cost in the database with the sale record, but keep it completely hidden from all external/customer-facing parts of the system.
+
+4. Improve Attractiveness of the Sell Page
+
+Redesign the Sell / Create Order page to look more modern, clean, and attractive while staying consistent with the existing dark-mode Shadcn/ui design.
+Improvements can include:
+  Better visual hierarchy
+  Improved card layouts for cart items
+  Smoother spacing and grouping of fields
+  Clear section dividers (Customer Info, Products, Delivery Details, Costs, Payment)
+  Better mobile responsiveness
+  Subtle animations / transitions where appropriate (Framer Motion is already in the project)
+
+5. Email Branding Update
+
+In all automated emails (order confirmation, receipts, delivery updates, etc.):
+
+Add the following line in the email footer / branding section:  
+  “UNDERGRADUATE HUB . Technology Partner - SAGA LAB . Backed By AGT Venture ”
+
+Make sure the line is styled nicely and appears consistently across every email template.
+
+Implementation Guidelines
+Update the Drizzle schema (shared/schema.ts) with any new columns needed (packaging_cost, delivery_date, delivery_time, delivery_location, order_status, etc.).
+Create/update API routes for the new Packaging workflow and delivery filtering.
+Update the frontend pages: Sell, Packaging (new), Delivery.
+Keep TypeScript strict and follow existing patterns (TanStack Query, React Hook Form + Zod, etc.).
+Absolutely no notifications** of any kind should be triggered during the Packaging stage.
+Packaging Cost must remain 100% internal (never exposed to customers or OrderBook).
+After implementation, ensure the entire flow works end-to-end:  
+  Confirm Order → Packaging (with internal Packaging Cost + Total Amount Spent on Packaging) → Mark as Packed → Delivery (Today / Tomorrow / Upcoming) → Mark as Delivered.
+
+Please implement these features completely and cleanly.
+

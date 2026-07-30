@@ -62,7 +62,10 @@ function emailShell(title: string, badgeLabel: string, bodyRows: string): string
           <td style="background:#1e3a8a;padding:20px 40px;text-align:center;">
             <div style="font-size:14px;font-weight:700;color:#ffffff;">Undergraduate Hub</div>
             <div style="font-size:12px;color:#93c5fd;margin-top:4px;">Saga Inventory Management System</div>
-            <div style="font-size:11px;color:#60a5fa;margin-top:8px;">This is an automated email. Please do not reply.</div>
+            <div style="font-size:11px;color:#60a5fa;margin-top:10px;letter-spacing:0.5px;">
+              UNDERGRADUATE HUB &nbsp;·&nbsp; Technology Partner - SAGA LAB &nbsp;·&nbsp; Backed By AGT Venture
+            </div>
+            <div style="font-size:11px;color:#60a5fa;margin-top:6px;">This is an automated email. Please do not reply.</div>
           </td>
         </tr>
       </table>

@@ -4,6 +4,16 @@
 
 Saga Inventory is a comprehensive inventory management system designed for retail and business operations. The application provides complete product tracking, sales management, customer relationship management, and business analytics. Built as a full-stack web application, it enables businesses to manage their inventory, process sales transactions, generate receipts, track customers and suppliers, and analyze business performance through detailed reports.
 
+## Quick Start (Replit)
+
+1. **Database** — provisioned automatically via the `javascript_database` integration (PostgreSQL). `DATABASE_URL` is set in the environment.
+2. **Install dependencies** — `npm install`
+3. **Apply schema** — `npm run db:push` (safe to re-run; idempotent)
+4. **Run** — `npm run dev` (or use the Run button / "Start application" workflow)
+5. **Login** — default password: `ASHIK123456789@00` (set `APP_PASSWORD` env var to change it)
+
+The post-merge setup script (`scripts/post-merge.sh`) handles steps 2–3 automatically after any code merge.
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

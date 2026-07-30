@@ -13,6 +13,7 @@ import {
   Mail,
   PackageCheck,
   MessageSquare,
+  Box,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -32,6 +33,7 @@ const mainItems = [
   { title: "Products", url: "/products", icon: Package, testId: "link-products" },
   { title: "New Sale", url: "/sales", icon: ShoppingCart, testId: "link-sales" },
   { title: "Sales History", url: "/sales/history", icon: History, testId: "link-sales-history" },
+  { title: "Packaging", url: "/packaging", icon: Box, testId: "link-packaging" },
   { title: "Delivery", url: "/delivery", icon: PackageCheck, testId: "link-delivery" },
 ];
 

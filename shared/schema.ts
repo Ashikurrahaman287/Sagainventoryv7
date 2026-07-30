@@ -56,6 +56,7 @@ export const sales = pgTable("sales", {
   orderStatus: text("order_status").notNull().default("packaging"),
   amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }),
   deliveredAt: timestamp("delivered_at"),
+  university: text("university"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -151,6 +152,7 @@ export const insertSaleSchema = createInsertSchema(sales).omit({
   deliveryTime: z.string().optional().nullable(),
   packagingCost: z.string().optional().nullable(),
   amountPaid: z.string().optional(),
+  university: z.string().optional().nullable(),
   items: z.array(insertSaleItemSchema),
 });
 

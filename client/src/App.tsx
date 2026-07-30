@@ -25,6 +25,7 @@ import EmailSettings from "@/pages/email-settings";
 import Delivery from "@/pages/delivery";
 import Packaging from "@/pages/packaging";
 import SmsPage from "@/pages/sms";
+import Universities from "@/pages/universities";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -45,6 +46,7 @@ function Router() {
       <Route path="/email" component={EmailSettings} />
       <Route path="/sms" component={SmsPage} />
       <Route path="/settings" component={Settings} />
+      <Route path="/universities" component={Universities} />
       <Route component={NotFound} />
     </Switch>
   );

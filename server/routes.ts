@@ -881,6 +881,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Universities ──────────────────────────────────────────────────────────
+  app.get("/api/universities/stats", async (_req, res) => {
+    try {
+      const stats = await storage.getUniversityStats();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/universities/top", async (req, res) => {
+    try {
+      const limit = parseInt(String(req.query.limit ?? "10"), 10);
+      const top = await storage.getTopUniversities(limit);
+      res.json(top);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

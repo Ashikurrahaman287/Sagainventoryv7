@@ -3,6 +3,7 @@ import session from "express-session";
 import MemoryStore from "memorystore";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { startTelegramBot } from "./telegram";
 
 const MemoryStoreSession = MemoryStore(session);
 
@@ -63,6 +64,13 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+
+  // Telegram bot — purely optional, never throws, never blocks HTTP
+  try {
+    startTelegramBot();
+  } catch (err: any) {
+    console.warn("[telegram] Bot failed to initialise:", err.message);
+  }
 
   // Global error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

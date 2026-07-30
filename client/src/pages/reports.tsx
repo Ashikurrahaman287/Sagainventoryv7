@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Download, Calendar } from "lucide-react";
+import { Download, Calendar, GraduationCap, Trophy } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -32,6 +32,12 @@ interface CustomerReport {
   name: string;
   purchases: number;
   spent: number;
+}
+
+interface UniversityReport {
+  university: string;
+  salesCount: number;
+  revenue: number;
 }
 
 function ProfitCards() {
@@ -117,6 +123,15 @@ export default function Reports() {
 
   const { data: topCustomers, isLoading: isLoadingCustomers } = useQuery<CustomerReport[]>({
     queryKey: ["/api/reports/customers"],
+  });
+
+  const { data: topUniversities, isLoading: isLoadingUniversities } = useQuery<UniversityReport[]>({
+    queryKey: ["/api/universities/top"],
+    queryFn: async () => {
+      const res = await fetch("/api/universities/top?limit=15");
+      if (!res.ok) throw new Error("Failed to load university data");
+      return res.json();
+    },
   });
 
   const periods = [
@@ -269,6 +284,10 @@ export default function Reports() {
           <TabsTrigger value="customers" data-testid="tab-customers">
             Customer Report
           </TabsTrigger>
+          <TabsTrigger value="universities" data-testid="tab-universities">
+            <GraduationCap className="h-3.5 w-3.5 mr-1.5" />
+            By University
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="stock" className="space-y-6">
@@ -410,6 +429,60 @@ export default function Reports() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   No customer data available yet
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="universities" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                Top Universities by Sales
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingUniversities ? (
+                <div className="space-y-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : topUniversities && topUniversities.length > 0 ? (
+                <div className="space-y-3">
+                  {topUniversities.map((uni, index) => (
+                    <div
+                      key={uni.university}
+                      className="flex items-center justify-between p-4 rounded-md border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm
+                          ${index === 0 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
+                            index === 1 ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" :
+                            index === 2 ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
+                            "bg-muted text-muted-foreground"}`}
+                        >
+                          {index + 1}
+                        </div>
+                        <div>
+                          <div className="font-semibold leading-tight">{uni.university}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {uni.salesCount} order{uni.salesCount !== 1 ? "s" : ""}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="font-mono font-semibold">
+                        ৳{uni.revenue.toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <GraduationCap className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p>No university data yet.</p>
+                  <p className="text-sm mt-1">Select a university when creating a sale to start tracking.</p>
                 </div>
               )}
             </CardContent>

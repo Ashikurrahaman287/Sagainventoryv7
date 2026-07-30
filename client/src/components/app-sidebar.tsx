@@ -14,6 +14,7 @@ import {
   PackageCheck,
   MessageSquare,
   Box,
+  GraduationCap,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -39,6 +40,7 @@ const mainItems = [
 
 const managementItems = [
   { title: "Customers", url: "/customers", icon: Users, testId: "link-customers" },
+  { title: "Universities", url: "/universities", icon: GraduationCap, testId: "link-universities" },
   { title: "Suppliers", url: "/suppliers", icon: Truck, testId: "link-suppliers" },
   { title: "Sellers", url: "/sellers", icon: UserCircle, testId: "link-sellers" },
 ];

@@ -102,6 +102,10 @@ export interface IStorage {
   getSalesReportByPeriod(period: string): Promise<{ transactions: number; revenue: number; profit: number }>;
   getTopCustomers(limit?: number): Promise<Array<{ name: string; purchases: number; spent: number }>>;
 
+  // Universities
+  getUniversityStats(): Promise<Array<{ university: string; salesCount: number; revenue: number; uniqueCustomers: number }>>;
+  getTopUniversities(limit?: number): Promise<Array<{ university: string; salesCount: number; revenue: number }>>;
+
   // SMS Logs
   createSmsLog(data: {
     event: string;
@@ -751,6 +755,32 @@ export class DbStorage implements IStorage {
       });
     }
     return results;
+  }
+
+  // Universities
+  async getUniversityStats(): Promise<Array<{ university: string; salesCount: number; revenue: number; uniqueCustomers: number }>> {
+    const rows = await db.select({
+      university: sales.university,
+      salesCount: sql<number>`count(*)::int`,
+      revenue: sql<number>`sum(${sales.total})::float`,
+      uniqueCustomers: sql<number>`count(distinct ${sales.customerId})::int`,
+    })
+    .from(sales)
+    .where(sql`${sales.university} is not null and ${sales.university} != ''`)
+    .groupBy(sales.university)
+    .orderBy(desc(sql`sum(${sales.total})`));
+
+    return rows.map((r) => ({
+      university: r.university!,
+      salesCount: Number(r.salesCount),
+      revenue: Number(r.revenue),
+      uniqueCustomers: Number(r.uniqueCustomers),
+    }));
+  }
+
+  async getTopUniversities(limit = 10): Promise<Array<{ university: string; salesCount: number; revenue: number }>> {
+    const stats = await this.getUniversityStats();
+    return stats.slice(0, limit).map(({ university, salesCount, revenue }) => ({ university, salesCount, revenue }));
   }
 
   // SMS Logs

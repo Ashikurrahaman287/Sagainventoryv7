@@ -35,7 +35,23 @@ import {
   DollarSign,
   Search,
   Sparkles,
+  GraduationCap,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import { UNIVERSITIES_SORTED } from "@/lib/universities";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -54,6 +70,8 @@ export default function Sales() {
   const [deliveryTime, setDeliveryTime] = useState("");
   const [packagingCost, setPackagingCost] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
+  const [university, setUniversity] = useState("");
+  const [uniPopoverOpen, setUniPopoverOpen] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [completedSale, setCompletedSale] = useState<{
     sale: Sale;
@@ -106,6 +124,7 @@ export default function Sales() {
       setDeliveryTime("");
       setPackagingCost("");
       setAmountPaid("");
+      setUniversity("");
 
       toast({ title: "Sale completed! Order is now in packaging queue. 📦" });
     },
@@ -196,6 +215,7 @@ export default function Sales() {
       deliveryTime: deliveryTime || null,
       packagingCost: packagingCost.trim() ? parseFloat(packagingCost).toFixed(2) : null,
       amountPaid: amountPaid.trim() ? parseFloat(amountPaid).toFixed(2) : total.toFixed(2),
+      university: university || null,
       items: cartItems.map((item) => {
         const product = products.find((p) => p.id === item.id);
         return {
@@ -369,6 +389,65 @@ export default function Sales() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5 text-sm font-medium">
+                  <GraduationCap className="h-3.5 w-3.5 text-muted-foreground" />
+                  University
+                  <span className="text-muted-foreground font-normal text-xs">(optional)</span>
+                </Label>
+                <Popover open={uniPopoverOpen} onOpenChange={setUniPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={uniPopoverOpen}
+                      className="h-9 w-full justify-between font-normal text-sm"
+                      data-testid="select-university"
+                    >
+                      <span className={university ? "text-foreground" : "text-muted-foreground"}>
+                        {university || "Select university…"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[340px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search university…" className="h-9" />
+                      <CommandEmpty>No university found.</CommandEmpty>
+                      <CommandGroup className="max-h-64 overflow-y-auto">
+                        {university && (
+                          <CommandItem
+                            value="__clear__"
+                            onSelect={() => { setUniversity(""); setUniPopoverOpen(false); }}
+                            className="text-muted-foreground italic"
+                          >
+                            Clear selection
+                          </CommandItem>
+                        )}
+                        {UNIVERSITIES_SORTED.map((u) => (
+                          <CommandItem
+                            key={u.value}
+                            value={u.value}
+                            onSelect={(val) => {
+                              setUniversity(val === university ? "" : val);
+                              setUniPopoverOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-3.5 w-3.5 flex-shrink-0 ${university === u.value ? "opacity-100" : "opacity-0"}`}
+                            />
+                            <span className="flex-1 min-w-0 truncate">{u.label}</span>
+                            {u.shortName && (
+                              <span className="ml-2 text-xs text-muted-foreground flex-shrink-0">{u.shortName}</span>
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             </CardContent>
           </Card>

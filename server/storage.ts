@@ -406,11 +406,8 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  // Packaging: orders that are in 'packaging' status (or legacy: no orderStatus, not delivered)
-  rescheduleDelivery(id: string, deliveryDate: string | null, deliveryTime: string | null): Promise<Sale | undefined>;
-
   // Packaging
-  getPackagingOrders(): Promise<Array<Sale & { customerName: string; sellerName: string; items: SaleItem[] }>> {
+  async getPackagingOrders(): Promise<Array<Sale & { customerName: string; sellerName: string; items: SaleItem[] }>> {
     const rows = await db.select({
       ...saleColumns,
       customerName: customers.name,

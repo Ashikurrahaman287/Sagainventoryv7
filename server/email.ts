@@ -59,13 +59,10 @@ function emailShell(title: string, badgeLabel: string, bodyRows: string): string
         ${bodyRows}
         ${SOCIAL_FOOTER}
         <tr>
-          <td style="background:#1e3a8a;padding:20px 40px;text-align:center;">
-            <div style="font-size:14px;font-weight:700;color:#ffffff;">Undergraduate Hub</div>
-            <div style="font-size:12px;color:#93c5fd;margin-top:4px;">Saga Inventory Management System</div>
-            <div style="font-size:11px;color:#60a5fa;margin-top:10px;letter-spacing:0.5px;">
-              UNDERGRADUATE HUB &nbsp;·&nbsp; Technology Partner - SAGA LAB &nbsp;·&nbsp; Backed By AGT Venture
-            </div>
-            <div style="font-size:11px;color:#60a5fa;margin-top:6px;">This is an automated email. Please do not reply.</div>
+          <td style="background:#1e3a8a;padding:24px 40px;text-align:center;">
+            <div style="font-size:15px;font-weight:800;color:#ffffff;letter-spacing:1.5px;">UNDERGRADUATE HUB</div>
+            <div style="font-size:12px;color:#93c5fd;margin-top:8px;letter-spacing:0.5px;">| Technology Partner - SAGA LAB | Backed By AGT Venture |</div>
+            <div style="font-size:11px;color:#60a5fa;margin-top:10px;">This is an automated email. Please do not reply.</div>
           </td>
         </tr>
       </table>
@@ -438,8 +435,9 @@ export async function sendTestEmail(
       <div style="font-size:20px;font-weight:700;color:#1e3a8a;">Email is Working!</div>
       <div style="font-size:14px;color:#6b7280;margin-top:8px;">Your email is correctly configured in Saga Inventory.<br/>Customers will now receive order confirmation emails automatically.</div>
     </div>
-    <div style="background:#1e3a8a;padding:16px;text-align:center;">
-      <div style="font-size:12px;color:#93c5fd;">Saga Inventory — Automated Email System</div>
+    <div style="background:#1e3a8a;padding:20px;text-align:center;">
+      <div style="font-size:14px;font-weight:800;color:#ffffff;letter-spacing:1.5px;">UNDERGRADUATE HUB</div>
+      <div style="font-size:12px;color:#93c5fd;margin-top:6px;">| Technology Partner - SAGA LAB | Backed By AGT Venture |</div>
     </div>
   </div>
 </body></html>`,

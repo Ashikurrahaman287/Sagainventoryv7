@@ -387,6 +387,31 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async cancelOrder(id: string): Promise<Sale | undefined> {
+    return await db.transaction(async (tx) => {
+      // Fetch the order inside the transaction to get a consistent status
+      const [existing] = await tx.select().from(sales).where(eq(sales.id, id));
+      if (!existing) return undefined;
+
+      // Idempotent: if already cancelled, return without touching inventory
+      if ((existing as any).orderStatus === 'cancelled') return existing;
+
+      // Restore inventory for each sale item
+      const items = await tx.select().from(saleItems).where(eq(saleItems.saleId, id));
+      for (const item of items) {
+        await tx.update(products)
+          .set({ quantity: sql`${products.quantity} + ${item.quantity}` })
+          .where(eq(products.id, item.productId));
+      }
+
+      const [updated] = await tx.update(sales)
+        .set({ orderStatus: 'cancelled' } as any)
+        .where(eq(sales.id, id))
+        .returning();
+      return updated;
+    });
+  }
+
   async markOrderPacked(id: string): Promise<Sale | undefined> {
     const result = await db.update(sales)
       .set({ orderStatus: 'ready_for_delivery' })

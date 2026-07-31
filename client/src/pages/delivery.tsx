@@ -29,6 +29,7 @@ import {
   AlarmClock,
   Package,
   CalendarClock,
+  XCircle,
 } from "lucide-react";
 import type { Sale } from "@shared/schema";
 
@@ -58,6 +59,7 @@ export default function Delivery() {
   const [statusFilter, setStatusFilter] = useState<"pending" | "delivered">("pending");
   const [confirmSale, setConfirmSale] = useState<SaleWithDetails | null>(null);
   const [rescheduleSale, setRescheduleSale] = useState<SaleWithDetails | null>(null);
+  const [cancelSale, setCancelSale] = useState<SaleWithDetails | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
   const { toast } = useToast();
@@ -115,6 +117,23 @@ export default function Delivery() {
     },
     onError: (e: any) => {
       toast({ title: "Reschedule failed", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("PATCH", `/api/delivery/${id}/cancel`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/delivery"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setCancelSale(null);
+      toast({ title: "Order cancelled ❌", description: "The order has been cancelled and stock restored." });
+    },
+    onError: (e: any) => {
+      toast({ title: "Cancel failed", description: e.message, variant: "destructive" });
     },
   });
 
@@ -325,7 +344,17 @@ export default function Delivery() {
                           data-testid={`button-reschedule-${sale.id}`}
                         >
                           <CalendarClock className="h-4 w-4 mr-1" />
-                          Reschedule
+                          Reschedule Delivery
+                        </Button>
+                        <Button
+                          onClick={() => setCancelSale(sale)}
+                          size="sm"
+                          variant="outline"
+                          className="border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          data-testid={`button-cancel-${sale.id}`}
+                        >
+                          <XCircle className="h-4 w-4 mr-1" />
+                          Cancel Order
                         </Button>
                       </div>
                     )}
@@ -378,6 +407,40 @@ export default function Delivery() {
               onClick={() => { if (confirmSale) deliverMutation.mutate({ id: confirmSale.id, paymentReceived: true }); }}
             >
               {deliverMutation.isPending ? "Processing…" : "Yes — Payment Received ✅"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Order dialog */}
+      <Dialog open={!!cancelSale} onOpenChange={(open) => !open && setCancelSale(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-red-500" />
+              Cancel Order — {cancelSale?.receiptNumber}
+            </DialogTitle>
+            <DialogDescription className="pt-2 space-y-1">
+              <span className="block">Customer: <strong>{cancelSale?.customerName}</strong></span>
+              <span className="block">Order Total: <strong>{cancelSale ? fmt(cancelSale.total) : ""}</strong></span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-center my-2">
+            <p className="font-semibold text-base text-destructive">Are you sure you want to cancel this order?</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              This will mark the order as <strong>cancelled</strong> and restore all product quantities back to stock.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setCancelSale(null)} disabled={cancelMutation.isPending}>
+              Keep Order
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelMutation.isPending}
+              onClick={() => { if (cancelSale) cancelMutation.mutate(cancelSale.id); }}
+            >
+              {cancelMutation.isPending ? "Cancelling…" : "Yes, Cancel Order"}
             </Button>
           </DialogFooter>
         </DialogContent>

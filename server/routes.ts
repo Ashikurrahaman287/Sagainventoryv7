@@ -442,6 +442,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/delivery/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      const updated = await storage.cancelOrder(req.params.id);
+      if (!updated) return res.status(404).json({ error: "Order not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // ── Delivery (packed orders only) ─────────────────────────────────────────
   app.get("/api/delivery", async (_req, res) => {
     try {

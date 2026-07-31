@@ -201,8 +201,8 @@ export default function Products() {
             stockCode:    validateRequired(row["Stock Code"],    "Stock Code"),
             name:         validateRequired(row["Product Name"],  "Product Name"),
             category:     validateRequired(row["Category"],      "Category"),
-            buyingPrice:  validateNumber(row["Buying Price"],    "Buying Price"),
-            sellingPrice: validateNumber(row["Selling Price"],   "Selling Price"),
+            buyingPrice:  String(validateNumber(row["Buying Price"],    "Buying Price")),
+            sellingPrice: String(validateNumber(row["Selling Price"],   "Selling Price")),
             quantity:     validateInteger(row["Quantity"],       "Quantity"),
             supplierId,
           };

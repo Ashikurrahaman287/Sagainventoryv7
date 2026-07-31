@@ -245,7 +245,7 @@ export default function Customers() {
           setIsFormOpen(open);
           if (!open) setEditingCustomer(null);
         }}
-        customer={editingCustomer || undefined}
+        customer={editingCustomer as any || undefined}
         onSubmit={handleSubmit}
       />
 

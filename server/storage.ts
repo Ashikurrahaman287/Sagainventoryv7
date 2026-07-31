@@ -140,6 +140,7 @@ const saleColumns = {
   orderStatus: sales.orderStatus,
   amountPaid: sales.amountPaid,
   deliveredAt: sales.deliveredAt,
+  university: sales.university,
   createdAt: sales.createdAt,
 };
 

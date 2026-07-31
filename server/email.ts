@@ -30,12 +30,12 @@ const SOCIAL_FOOTER = `
     <div style="font-size:12px;color:#6b7280;margin-bottom:12px;">Follow us &amp; stay connected!</div>
     <div style="display:inline-block;">
       <a href="https://www.facebook.com/undergraduate.hub"
-         style="display:inline-block;background:#1877F2;color:#ffffff;text-decoration:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;margin:0 6px;letter-spacing:0.3px;">
-        &#x1F4D8; Facebook
+         style="display:inline-block;background:#1877F2;color:#ffffff;text-decoration:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;margin:0 6px;letter-spacing:0.3px;font-family:Arial,sans-serif;">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Facebook_Logo_%282019%29.png/600px-Facebook_Logo_%282019%29.png" alt="f" width="14" height="14" style="vertical-align:middle;margin-right:6px;border-radius:2px;"/>Facebook
       </a>
       <a href="https://www.instagram.com/undergra_hub"
-         style="display:inline-block;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#ffffff;text-decoration:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;margin:0 6px;letter-spacing:0.3px;">
-        &#x1F4F7; Instagram
+         style="display:inline-block;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#ffffff;text-decoration:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;margin:0 6px;letter-spacing:0.3px;font-family:Arial,sans-serif;">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png" alt="ig" width="14" height="14" style="vertical-align:middle;margin-right:6px;border-radius:2px;"/>Instagram
       </a>
     </div>
   </td>
@@ -61,7 +61,7 @@ function emailShell(title: string, badgeLabel: string, bodyRows: string): string
         <tr>
           <td style="background:#1e3a8a;padding:24px 40px;text-align:center;">
             <div style="font-size:15px;font-weight:800;color:#ffffff;letter-spacing:1.5px;">UNDERGRADUATE HUB</div>
-            <div style="font-size:12px;color:#93c5fd;margin-top:8px;letter-spacing:0.5px;">| Technology Partner - SAGA LAB | Backed By AGT Venture |</div>
+            <div style="font-size:12px;color:#93c5fd;margin-top:8px;letter-spacing:0.5px;">| Technology Partner - SAGA LAB | Backed By - AGT Venture |</div>
             <div style="font-size:11px;color:#60a5fa;margin-top:10px;">This is an automated email. Please do not reply.</div>
           </td>
         </tr>
@@ -437,7 +437,7 @@ export async function sendTestEmail(
     </div>
     <div style="background:#1e3a8a;padding:20px;text-align:center;">
       <div style="font-size:14px;font-weight:800;color:#ffffff;letter-spacing:1.5px;">UNDERGRADUATE HUB</div>
-      <div style="font-size:12px;color:#93c5fd;margin-top:6px;">| Technology Partner - SAGA LAB | Backed By AGT Venture |</div>
+      <div style="font-size:12px;color:#93c5fd;margin-top:6px;">| Technology Partner - SAGA LAB | Backed By - AGT Venture |</div>
     </div>
   </div>
 </body></html>`,

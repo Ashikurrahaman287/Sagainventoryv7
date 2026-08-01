@@ -837,6 +837,19 @@ export class DbStorage implements IStorage {
     return db.select().from(smsLogs).orderBy(desc(smsLogs.createdAt)).limit(limit);
   }
 
+  async getSmsLog(id: string): Promise<SmsLog | undefined> {
+    const result = await db.select().from(smsLogs).where(eq(smsLogs.id, id)).limit(1);
+    return result[0];
+  }
+
+  async updateSmsLog(id: string, data: { status: string; requestId?: string | null; error?: string | null }): Promise<SmsLog | undefined> {
+    const [row] = await db.update(smsLogs)
+      .set({ status: data.status, requestId: data.requestId ?? null, error: data.error ?? null })
+      .where(eq(smsLogs.id, id))
+      .returning();
+    return row;
+  }
+
   async getSmsStats(): Promise<{ total: number; sent: number; failed: number }> {
     const result = await db.select({
       total: sql<number>`count(*)`,

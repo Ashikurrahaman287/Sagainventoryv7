@@ -864,6 +864,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── SMS ───────────────────────────────────────────────────────────────────
+
+  // Manual send
+  app.post("/api/sms/send", async (req, res) => {
+    try {
+      const schema = z.object({
+        phone: z.string().min(1),
+        message: z.string().min(1).max(160),
+      });
+      const { phone, message } = schema.parse(req.body);
+      const result = await sendSms(phone, message);
+      const log = await storage.createSmsLog({
+        event: "manual",
+        recipient: phone,
+        message,
+        requestId: result.requestId,
+        status: result.success ? "sent" : "failed",
+        error: result.error,
+      });
+      res.json({ ...result, log });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Resend a failed log entry
+  app.post("/api/sms/resend/:id", async (req, res) => {
+    try {
+      const log = await storage.getSmsLog(req.params.id);
+      if (!log) return res.status(404).json({ error: "Log entry not found" });
+      const result = await sendSms(log.recipient, log.message);
+      const updated = await storage.updateSmsLog(log.id, {
+        status: result.success ? "sent" : "failed",
+        requestId: result.requestId ?? null,
+        error: result.error ?? null,
+      });
+      res.json({ ...result, log: updated });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.get("/api/sms/logs", async (_req, res) => {
     try {
       const logs = await storage.getSmsLogs(200);

@@ -39,53 +39,79 @@ function normaliseNumber(raw: string): string {
   return "880" + digits;
 }
 
-/** Send a single SMS via SwiftSMS */
+/** Parse a raw SwiftSMS HTTP response into an SmsResult */
+function parseSmsSendResponse(raw: string): SmsResult {
+  let body: any = null;
+  try { body = JSON.parse(raw); } catch { /* plain text response */ }
+
+  if (body !== null) {
+    if (body.error_code === 0 || body.status === "success") {
+      return { success: true, requestId: String(body.message_id ?? body.request_id ?? Date.now()) };
+    }
+    const meaning = ERROR_MEANINGS[body.error_code] ?? "Unknown error";
+    return { success: false, error: `Error ${body.error_code}: ${meaning}` };
+  }
+
+  // Plain text: success if it looks like a numeric message ID or "success"
+  const trimmed = raw.trim().toLowerCase();
+  if (/^\d+$/.test(raw.trim()) || trimmed === "success" || trimmed.startsWith("submitted")) {
+    return { success: true, requestId: raw.trim() };
+  }
+  // Map known plain-text error phrases to error codes
+  const errCode = Object.entries({
+    1007: "insufficient",
+    1012: "invalid number",
+    1008: "message is empty",
+    1004: "spam",
+  }).find(([, kw]) => trimmed.includes(kw));
+  if (errCode) {
+    const code = parseInt(errCode[0]);
+    return { success: false, error: `Error ${code}: ${ERROR_MEANINGS[code]}` };
+  }
+  return { success: false, error: raw.trim() || "Unknown error from SwiftSMS" };
+}
+
+/** Attempt one HTTP send to SwiftSMS */
+async function trySendSms(number: string, message: string): Promise<SmsResult> {
+  const params = new URLSearchParams({
+    apikey: API_KEY,
+    phonenumber: number,
+    message,
+    label: "transactional",
+  });
+  const res = await fetch(`${BASE_URL}/send?${params.toString()}`, {
+    signal: AbortSignal.timeout(15_000), // 15 s hard timeout
+  });
+  const raw = await res.text();
+  return parseSmsSendResponse(raw);
+}
+
+/** Send a single SMS via SwiftSMS — retries once on network errors */
 export async function sendSms(to: string, message: string): Promise<SmsResult> {
   if (!API_KEY) {
     return { success: false, error: "SMS_API_KEY is not configured" };
   }
   const number = normaliseNumber(to);
-  try {
-    const params = new URLSearchParams({
-      apikey: API_KEY,
-      phonenumber: number,
-      message,
-      label: "transactional",
-    });
-    const res = await fetch(`${BASE_URL}/send?${params.toString()}`);
-    // API returns plain text — try JSON first, fall back to text
-    const raw = await res.text();
-    let body: any = null;
-    try { body = JSON.parse(raw); } catch { /* plain text response */ }
 
-    if (body !== null) {
-      if (body.error_code === 0 || body.status === "success") {
-        return { success: true, requestId: String(body.message_id ?? body.request_id ?? Date.now()) };
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const result = await trySendSms(number, message);
+      if (result.success || attempt === 2) return result;
+      // API-level failures (bad number, spam, etc.) — don't retry
+      return result;
+    } catch (err: any) {
+      // Network / timeout error
+      const cause = err?.cause?.message ?? err?.cause?.code ?? "";
+      const detail = cause ? `${err.message} (${cause})` : err.message;
+      console.error(`[sms] attempt ${attempt} failed: ${detail}`);
+      if (attempt === 2) {
+        return { success: false, error: detail };
       }
-      const meaning = ERROR_MEANINGS[body.error_code] ?? "Unknown error";
-      return { success: false, error: `Error ${body.error_code}: ${meaning}` };
+      // Wait 3 s before retrying
+      await new Promise((r) => setTimeout(r, 3_000));
     }
-
-    // Plain text: success if it looks like a numeric message ID or "success"
-    const trimmed = raw.trim().toLowerCase();
-    if (/^\d+$/.test(raw.trim()) || trimmed === "success" || trimmed.startsWith("submitted")) {
-      return { success: true, requestId: raw.trim() };
-    }
-    // Map known plain-text error phrases to error codes
-    const errCode = Object.entries({
-      1007: "insufficient",
-      1012: "invalid number",
-      1008: "message is empty",
-      1004: "spam",
-    }).find(([, kw]) => trimmed.includes(kw));
-    if (errCode) {
-      const code = parseInt(errCode[0]);
-      return { success: false, error: `Error ${code}: ${ERROR_MEANINGS[code]}` };
-    }
-    return { success: false, error: raw.trim() || "Unknown error from SwiftSMS" };
-  } catch (err: any) {
-    return { success: false, error: err.message };
   }
+  return { success: false, error: "Unknown send error" };
 }
 
 /** Fetch current SMS balance from SwiftSMS */

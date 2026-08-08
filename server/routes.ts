@@ -462,6 +462,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/delivery/uni-today", async (_req, res) => {
+    try {
+      const data = await storage.getTodayDeliveriesByUniversity();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ── Sales ─────────────────────────────────────────────────────────────────
   app.get("/api/sales/recent", async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;

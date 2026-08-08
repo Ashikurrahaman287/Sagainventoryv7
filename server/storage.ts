@@ -460,11 +460,14 @@ export class DbStorage implements IStorage {
   }
 
   // Delivery: orders that are 'ready_for_delivery' (packed but not yet delivered)
-  async getDeliveryOrders(): Promise<Array<Sale & { customerName: string; sellerName: string }>> {
+  async getDeliveryOrders(): Promise<Array<Sale & { customerName: string; sellerName: string; customerEmail: string; customerPhone: string; productNames: string }>> {
     return db.select({
       ...saleColumns,
       customerName: customers.name,
       sellerName: sellers.name,
+      customerEmail: customers.email,
+      customerPhone: customers.phone,
+      productNames: sql<string>`(SELECT string_agg(p.name, ', ' ORDER BY si.id) FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = ${sales.id})`,
     })
     .from(sales)
     .innerJoin(customers, eq(sales.customerId, customers.id))
@@ -476,6 +479,53 @@ export class DbStorage implements IStorage {
       )!
     )
     .orderBy(desc(sales.createdAt));
+  }
+
+  async getTodayDeliveriesByUniversity(): Promise<Array<{
+    university: string;
+    totalOrders: number;
+    orders: Array<{ receiptNumber: string; customerName: string; deliveryTime: string | null; deliveryAddress: string | null; total: string; productNames: string }>;
+  }>> {
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split("T")[0];
+    const rows = await db.select({
+      ...saleColumns,
+      customerName: customers.name,
+      productNames: sql<string>`(SELECT string_agg(p.name, ', ' ORDER BY si.id) FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = ${sales.id})`,
+    })
+    .from(sales)
+    .innerJoin(customers, eq(sales.customerId, customers.id))
+    .where(
+      and(
+        eq(sales.deliveryDate, today),
+        eq(sales.orderStatus, 'ready_for_delivery'),
+        sql`${sales.university} is not null and ${sales.university} != ''`,
+      )!
+    )
+    .orderBy(sales.university, sales.deliveryTime);
+
+    // Group by university
+    const grouped = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const uni = (row as any).university as string;
+      if (!grouped.has(uni)) grouped.set(uni, []);
+      grouped.get(uni)!.push(row);
+    }
+
+    return Array.from(grouped.entries())
+      .sort((a, b) => b[1].length - a[1].length)
+      .map(([university, uniRows]) => ({
+        university,
+        totalOrders: uniRows.length,
+        orders: uniRows.map((r: any) => ({
+          receiptNumber: r.receiptNumber,
+          customerName: r.customerName,
+          deliveryTime: r.deliveryTime ?? null,
+          deliveryAddress: r.deliveryAddress ?? null,
+          total: r.total,
+          productNames: r.productNames ?? "",
+        })),
+      }));
   }
 
   async deleteSale(id: string): Promise<boolean> {
